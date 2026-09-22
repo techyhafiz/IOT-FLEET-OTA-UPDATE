@@ -3,16 +3,18 @@ import '@wokwi/elements'
 
 interface Props {
   pins?: Partial<{ D0: 0 | 1; D1: 0 | 1; D2: 0 | 1; D3: 0 | 1; D4: 0 | 1; D5: 0 | 1 }>
-  size?: 'sm' | 'md' | 'lg'
+  size?: 'xxs' | 'xs' | 'sm' | 'md' | 'lg'
   isUpdating?: boolean
   isOffline?: boolean
   template?: 'led' | 'lcd'
 }
 
-const SCALE: Record<'sm' | 'md' | 'lg', number> = {
-  sm: 0.72,
-  md: 1.05,
-  lg: 1.35,
+const SCALE: Record<'xxs' | 'xs' | 'sm' | 'md' | 'lg', number> = {
+  xxs: 0.46,
+  xs: 0.52,
+  sm: 0.62,
+  md: 1.0,
+  lg: 1.3,
 }
 
 const WokwiEsp32 = 'wokwi-esp32-devkit-v1' as any
@@ -37,10 +39,10 @@ export const Esp32Board: React.FC<Props> = ({
 
   return (
     <div
-      className={`relative inline-flex flex-col items-center justify-center p-2 rounded-xl transition-all duration-300 ${
+      className={`relative inline-flex flex-col items-center justify-center p-0.5 rounded-lg transition-all duration-300 ${
         isOffline ? 'opacity-40 grayscale' : ''
       } ${isUpdating ? 'animate-pulse' : ''}`}
-      style={{ width: width + 24, height: height + 24 }}
+      style={{ width: width + 10, height: height + 10 }}
     >
       <div
         style={{

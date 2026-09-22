@@ -20,8 +20,8 @@ async def capture():
         )
         page = await context.new_page()
 
-        # 1. PC-A Dashboard (Home Overview with top stats, donut chart, devices, logs table)
-        print("Capturing PC-A Dashboard Home...")
+        # 1. PC-A Dashboard Home (Standard 1440x900)
+        print("Capturing PC-A Dashboard Home (1440x900)...")
         await page.goto("http://localhost:5173", wait_until="networkidle")
         await asyncio.sleep(2)
         p1 = os.path.join(OUTPUT_DIR, "pc_a_dashboard_home.png")
@@ -30,8 +30,8 @@ async def capture():
         await page.screenshot(path=p1_art)
         print(f"Saved: {p1}")
 
-        # 1b. PC-A Analytics Page
-        print("Capturing PC-A Analytics Page...")
+        # 1b. PC-A Analytics Page (Standard 1440x900)
+        print("Capturing PC-A Analytics Page (1440x900)...")
         analytics_btn = page.locator("text=Analytics").first
         if await analytics_btn.count() > 0:
             await analytics_btn.click()
@@ -46,6 +46,38 @@ async def capture():
             if await home_btn.count() > 0:
                 await home_btn.click()
                 await asyncio.sleep(0.5)
+
+        # 1c. Test on Laptop Browser dimensions (1366 x 680, DPR 1.25)
+        print("Capturing PC-A Laptop Browser Mode (1366x680, DPR 1.25)...")
+        laptop_ctx = await browser.new_context(
+            viewport={"width": 1366, "height": 680},
+            device_scale_factor=1.25
+        )
+        laptop_page = await laptop_ctx.new_page()
+        await laptop_page.goto("http://localhost:5173", wait_until="networkidle")
+        await asyncio.sleep(2)
+        p_lap = os.path.join(OUTPUT_DIR, "pc_a_dashboard_laptop_680h.png")
+        p_lap_art = os.path.join(ARTIFACT_DIR, "pc_a_dashboard_laptop_680h.png")
+        await laptop_page.screenshot(path=p_lap)
+        await laptop_page.screenshot(path=p_lap_art)
+        print(f"Saved: {p_lap}")
+        await laptop_ctx.close()
+
+        # 1d. Test on Large Desktop dimensions (1920 x 1080, DPR 1.0)
+        print("Capturing PC-A Large Desktop Mode (1920x1080, DPR 1.0)...")
+        desktop_ctx = await browser.new_context(
+            viewport={"width": 1920, "height": 1080},
+            device_scale_factor=1.0
+        )
+        desktop_page = await desktop_ctx.new_page()
+        await desktop_page.goto("http://localhost:5173", wait_until="networkidle")
+        await asyncio.sleep(2)
+        p_desk = os.path.join(OUTPUT_DIR, "pc_a_dashboard_desktop_1080p.png")
+        p_desk_art = os.path.join(ARTIFACT_DIR, "pc_a_dashboard_desktop_1080p.png")
+        await desktop_page.screenshot(path=p_desk)
+        await desktop_page.screenshot(path=p_desk_art)
+        print(f"Saved: {p_desk}")
+        await desktop_ctx.close()
 
         # 2. PC-A Update Firmware Popup Modal
         print("Capturing PC-A Update Firmware Popup...")
