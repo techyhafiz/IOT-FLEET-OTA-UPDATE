@@ -3,11 +3,12 @@ import type { Device, FirmwareVersion, LogEntry, WSEvent } from '@shared/types'
 import { useWebSocket, api } from './hooks/useWebSocket'
 import { FleetGrid } from './pages/FleetGrid'
 import { FirmwarePage } from './pages/FirmwarePage'
+import { AnalyticsPage } from './pages/AnalyticsPage'
 import { DevicePanel } from './components/DevicePanel'
 import { UpdateFirmwareModal } from './components/UpdateFirmwareModal'
 import './index.css'
 
-export type NavTab = 'home' | 'devices' | 'firmware' | 'deployments' | 'monitoring' | 'settings'
+export type NavTab = 'home' | 'devices' | 'firmware' | 'deployments' | 'analytics' | 'settings'
 
 export default function App() {
   const [tab, setTab] = useState<NavTab>('home')
@@ -128,7 +129,7 @@ export default function App() {
                 PC-A
               </span>
             </div>
-            <p className="text-xs text-slate-500 font-sans">ESP32 Fleet Telemetry & OTA Deployment</p>
+            <p className="text-xs text-slate-500 font-sans">ESP32 Fleet OTA Deployment</p>
           </div>
         </div>
 
@@ -165,19 +166,23 @@ export default function App() {
             {formattedUtcTime}
           </span>
 
-          {/* Notification Bell */}
+          {/* Notification Bell with red alert dot */}
           <button
             title="Notifications"
-            className="w-8 h-8 rounded-full border border-slate-200 hover:bg-slate-50 flex items-center justify-center text-slate-600 cursor-pointer transition-colors shadow-2xs"
+            className="relative w-8 h-8 rounded-full border border-slate-200 hover:bg-slate-50 flex items-center justify-center text-slate-600 cursor-pointer transition-colors shadow-2xs"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
             </svg>
+            <span className="w-2 h-2 rounded-full bg-red-500 absolute top-1 right-1 border border-white" />
           </button>
 
-          {/* User Avatar */}
-          <div className="w-8 h-8 rounded-full bg-emerald-800 text-white font-bold flex items-center justify-center text-sm shadow-xs cursor-pointer">
-            H
+          {/* User Avatar with Chevron */}
+          <div className="flex items-center gap-1.5 cursor-pointer">
+            <div className="w-8 h-8 rounded-full bg-emerald-800 text-white font-bold flex items-center justify-center text-sm shadow-xs">
+              H
+            </div>
+            <span className="text-slate-400 text-xs font-bold">⌵</span>
           </div>
         </div>
       </header>
@@ -245,17 +250,17 @@ export default function App() {
             </button>
 
             <button
-              onClick={() => setTab('monitoring')}
+              onClick={() => setTab('analytics')}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all cursor-pointer ${
-                tab === 'monitoring'
+                tab === 'analytics'
                   ? 'bg-emerald-50 text-emerald-800 font-bold shadow-2xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
               }`}
             >
-              <svg className={`w-4 h-4 ${tab === 'monitoring' ? 'text-emerald-600' : 'text-slate-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              <svg className={`w-4 h-4 ${tab === 'analytics' ? 'text-emerald-600' : 'text-slate-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
-              <span>Monitoring</span>
+              <span>Analytics</span>
             </button>
 
             <button
@@ -290,7 +295,7 @@ export default function App() {
 
         {/* Right Main Content */}
         <main className="flex-1 overflow-y-auto bg-slate-50/50">
-          {(tab === 'home' || tab === 'devices' || tab === 'monitoring') && (
+          {(tab === 'home' || tab === 'devices') && (
             <FleetGrid
               devices={devices}
               firmware={firmware}
@@ -308,6 +313,13 @@ export default function App() {
             <FirmwarePage
               firmware={firmware}
               onRefresh={loadAll}
+            />
+          )}
+
+          {tab === 'analytics' && (
+            <AnalyticsPage
+              devices={devices}
+              firmware={firmware}
             />
           )}
 

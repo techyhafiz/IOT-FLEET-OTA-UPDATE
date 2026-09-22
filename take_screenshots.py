@@ -30,6 +30,23 @@ async def capture():
         await page.screenshot(path=p1_art)
         print(f"Saved: {p1}")
 
+        # 1b. PC-A Analytics Page
+        print("Capturing PC-A Analytics Page...")
+        analytics_btn = page.locator("text=Analytics").first
+        if await analytics_btn.count() > 0:
+            await analytics_btn.click()
+            await asyncio.sleep(1.5)
+            p_an = os.path.join(OUTPUT_DIR, "pc_a_dashboard_analytics.png")
+            p_an_art = os.path.join(ARTIFACT_DIR, "pc_a_dashboard_analytics.png")
+            await page.screenshot(path=p_an)
+            await page.screenshot(path=p_an_art)
+            print(f"Saved: {p_an}")
+            # Switch back to Home
+            home_btn = page.locator("text=Home").first
+            if await home_btn.count() > 0:
+                await home_btn.click()
+                await asyncio.sleep(0.5)
+
         # 2. PC-A Update Firmware Popup Modal
         print("Capturing PC-A Update Firmware Popup...")
         # Select first device and click Update Firmware
