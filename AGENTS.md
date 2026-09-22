@@ -60,12 +60,16 @@ interface WSEvent {
 3. At 100%: POST /api/devices/{id}/status with `{ state: 'complete', firmware: newVersion }`
 4. Backend clears ota_pending, broadcasts ota_complete
 
-## Tailwind Dark Theme Classes (use these consistently)
-- Page bg: `bg-[#0f172a]`
-- Card bg: `bg-slate-800` / `bg-[#1e293b]`
-- Card border: `border border-slate-700`
-- Primary accent: `text-cyan-400` / `bg-cyan-500`
-- Success: `text-green-400`
-- Warning: `text-amber-400`
-- Error: `text-red-400`
-- Muted text: `text-slate-400`
+## Tailwind Light Theme Classes (Strictly Light Theme)
+- Page bg: `bg-slate-50`
+- Surface/Card bg: `bg-white`
+- Card border: `border border-slate-200`
+- Primary accent: `text-cyan-600` / `bg-cyan-600` / `hover:bg-cyan-700`
+- Success: `text-emerald-600` / `bg-emerald-50` / `border-emerald-200`
+- Warning: `text-amber-600` / `bg-amber-50` / `border-amber-200`
+- Error: `text-red-600` / `bg-red-50` / `border-red-200`
+- Body text: `text-slate-900`
+- Muted text: `text-slate-500`
+- Subtle borders / dividers: `border-slate-200`
+- Elevated shadow: `shadow-xs` / `shadow-sm`
+

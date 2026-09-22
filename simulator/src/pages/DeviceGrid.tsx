@@ -20,13 +20,13 @@ function DeviceCard({ device, onRemove }: { device: Device; onRemove: (id: strin
   const isOffline = !device.online
 
   return (
-    <div className={`relative rounded-xl border bg-slate-800 flex flex-col items-center p-4 gap-3 transition-all duration-300 hover:border-cyan-600 ${
-      isOffline ? 'border-slate-700 opacity-60' : isUpdating ? 'border-cyan-500 shadow-lg shadow-cyan-900/40' : 'border-slate-700'
+    <div className={`relative rounded-xl border bg-white flex flex-col items-center p-4 gap-3 transition-all duration-200 hover:border-cyan-500 hover:shadow-md ${
+      isOffline ? 'border-slate-200 bg-slate-50/70 opacity-60' : isUpdating ? 'border-cyan-500 shadow-md shadow-cyan-100' : 'border-slate-200 shadow-xs'
     }`}>
       {/* Delete button */}
       <button
         onClick={() => setConfirmDelete(true)}
-        className="absolute top-2 right-2 w-6 h-6 rounded-full bg-slate-700 hover:bg-red-800 text-slate-400 hover:text-red-300 text-xs flex items-center justify-center transition-colors"
+        className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full bg-slate-100 hover:bg-rose-100 text-slate-400 hover:text-rose-600 text-xs flex items-center justify-center transition-colors font-bold"
         title="Delete device"
       >✕</button>
 
@@ -47,13 +47,13 @@ function DeviceCard({ device, onRemove }: { device: Device; onRemove: (id: strin
       {/* OTA progress bar */}
       {isUpdating && (
         <div className="w-full">
-          <div className="flex justify-between text-xs font-mono text-cyan-400 mb-1">
+          <div className="flex justify-between text-xs font-mono text-cyan-700 font-bold mb-1">
             <span>FLASHING...</span>
             <span>{device.ota_progress}%</span>
           </div>
-          <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+          <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
             <div
-              className="h-full bg-cyan-500 rounded-full transition-all duration-500"
+              className="h-full bg-cyan-600 rounded-full transition-all duration-500"
               style={{ width: `${device.ota_progress}%` }}
             />
           </div>
@@ -62,50 +62,50 @@ function DeviceCard({ device, onRemove }: { device: Device; onRemove: (id: strin
 
       {/* Device info */}
       <div className="text-center w-full">
-        <div className="font-mono font-bold text-cyan-400 text-sm truncate">{device.id}</div>
+        <div className="font-mono font-bold text-cyan-700 text-sm truncate">{device.id}</div>
         <div className="flex items-center justify-center gap-2 mt-1">
-          <span className="text-lg">{device.template === 'lcd' ? '🖥' : '💡'}</span>
-          <span className="text-xs text-slate-400">{device.template === 'lcd' ? '16×2 LCD' : '2-LED Ctrl'}</span>
+          <span className="text-base">{device.template === 'lcd' ? '🖥' : '💡'}</span>
+          <span className="text-xs text-slate-600 font-mono font-medium">{device.template === 'lcd' ? '16×2 LCD' : '2-LED Ctrl'}</span>
         </div>
         <div className="flex items-center justify-center gap-1.5 mt-1.5">
-          <span className={`w-2 h-2 rounded-full ${isOffline ? 'bg-red-500' : 'bg-green-400 animate-pulse'}`}/>
-          <span className={`text-xs font-mono ${isOffline ? 'text-red-400' : 'text-green-400'}`}>
+          <span className={`w-2 h-2 rounded-full ${isOffline ? 'bg-rose-500' : 'bg-emerald-500 animate-pulse'}`}/>
+          <span className={`text-xs font-mono font-semibold ${isOffline ? 'text-rose-600' : 'text-emerald-700'}`}>
             {isOffline ? 'OFFLINE' : 'ONLINE'}
           </span>
         </div>
-        <div className="mt-1 flex items-center justify-center gap-2 text-xs text-slate-500 font-mono">
-          <span className="bg-slate-700 px-1.5 py-0.5 rounded">{device.firmware}</span>
-          <span className="bg-slate-700 px-1.5 py-0.5 rounded">{device.group}</span>
+        <div className="mt-1.5 flex items-center justify-center gap-2 text-xs font-mono">
+          <span className="bg-slate-100 border border-slate-200 text-slate-700 px-2 py-0.5 rounded font-medium">{device.firmware}</span>
+          <span className="bg-slate-100 border border-slate-200 text-slate-500 px-2 py-0.5 rounded font-medium">{device.group}</span>
         </div>
         {!isOffline && (
-          <div className="text-xs text-slate-600 font-mono mt-1">
+          <div className="text-[11px] text-slate-400 font-mono mt-1">
             up: {Math.floor((device.uptime ?? 0) / 3600)}h {Math.floor(((device.uptime ?? 0) % 3600) / 60)}m
           </div>
         )}
         {isOffline && (
-          <div className="text-xs text-slate-600 font-mono mt-1">Last seen: recently</div>
+          <div className="text-[11px] text-slate-400 font-mono mt-1">Last seen: recently</div>
         )}
       </div>
 
       {/* Open button */}
       <button
         onClick={() => navigate(`/device/${device.id}`)}
-        className="w-full mt-1 py-1.5 rounded-lg bg-slate-700 hover:bg-cyan-900/50 border border-slate-600 hover:border-cyan-600 text-cyan-400 text-xs font-mono transition-colors"
+        className="w-full mt-1 py-2 rounded-lg bg-slate-100 hover:bg-cyan-50 border border-slate-200 hover:border-cyan-300 text-cyan-700 text-xs font-mono font-bold transition-colors shadow-2xs"
       >
         👁 Open Device
       </button>
 
       {/* Confirm delete dialog */}
       {confirmDelete && (
-        <div className="absolute inset-0 bg-slate-900/95 rounded-xl flex flex-col items-center justify-center gap-3 z-10">
-          <span className="text-sm text-slate-300 font-mono">Delete {device.id}?</span>
+        <div className="absolute inset-0 bg-white/95 rounded-xl flex flex-col items-center justify-center gap-3 z-10 border border-slate-200 shadow-lg p-4">
+          <span className="text-sm text-slate-800 font-mono font-bold">Delete {device.id}?</span>
           <div className="flex gap-2">
             <button onClick={() => { onRemove(device.id); setConfirmDelete(false) }}
-              className="px-3 py-1 bg-red-800 hover:bg-red-700 text-red-200 text-xs rounded font-mono">
+              className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs rounded-lg font-mono font-bold shadow-xs">
               Delete
             </button>
             <button onClick={() => setConfirmDelete(false)}
-              className="px-3 py-1 bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs rounded font-mono">
+              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-lg font-mono font-semibold">
               Cancel
             </button>
           </div>
@@ -135,15 +135,15 @@ export function DeviceGrid({ devices, groups, onAdd, onRemove, onRefreshGroups }
         {/* Add Device card */}
         <button
           onClick={() => setShowAdd(true)}
-          className="rounded-xl border-2 border-dashed border-slate-700 hover:border-cyan-600 bg-slate-800/50 hover:bg-cyan-900/10 flex flex-col items-center justify-center gap-3 p-8 min-h-[280px] transition-all duration-200 group"
+          className="rounded-xl border-2 border-dashed border-slate-300 hover:border-cyan-600 bg-white/70 hover:bg-cyan-50/40 flex flex-col items-center justify-center gap-3 p-8 min-h-[280px] transition-all duration-200 group cursor-pointer shadow-xs"
         >
-          <div className="w-12 h-12 rounded-full bg-slate-700 group-hover:bg-cyan-900/50 flex items-center justify-center text-2xl transition-colors">
+          <div className="w-12 h-12 rounded-full bg-slate-100 group-hover:bg-cyan-100 text-slate-500 group-hover:text-cyan-700 flex items-center justify-center text-2xl font-bold transition-colors shadow-2xs">
             +
           </div>
           <div className="text-center">
-            <div className="text-slate-300 font-mono font-semibold text-sm">Add Device</div>
-            <div className="text-slate-600 font-mono text-xs mt-1">Pick a template & spawn</div>
-            <div className="text-slate-600 font-mono text-xs">auto-registers on PC-A ✓</div>
+            <div className="text-slate-800 font-mono font-bold text-sm">Add Device</div>
+            <div className="text-slate-500 font-mono text-xs mt-1">Pick a template & spawn</div>
+            <div className="text-slate-400 font-mono text-xs">auto-registers on PC-A ✓</div>
           </div>
         </button>
       </div>

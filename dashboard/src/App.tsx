@@ -84,23 +84,23 @@ export default function App() {
     selectedIds.size === devices.length ? new Set() : new Set(devices.map(d => d.id))
   )
 
-  const tabClass = (t: Tab) => `px-4 py-2 text-sm font-mono rounded-lg transition-colors ${
-    tab === t ? 'bg-cyan-900/40 text-cyan-400 border border-cyan-700' : 'text-slate-400 hover:text-slate-200'
+  const tabClass = (t: Tab) => `px-4 py-2 text-sm font-mono rounded-lg transition-colors font-medium ${
+    tab === t ? 'bg-cyan-50 text-cyan-700 border border-cyan-300 shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
   }`
 
   return (
-    <div className="min-h-screen bg-[#0f172a] text-slate-200 flex flex-col">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col">
       {/* Top nav */}
-      <header className="border-b border-slate-700 bg-slate-900 px-6 py-3 flex items-center justify-between shrink-0">
+      <header className="border-b border-slate-200 bg-white px-6 py-3 flex items-center justify-between shrink-0 shadow-xs">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <span className="text-2xl">⚡</span>
             <div>
-              <h1 className="text-lg font-bold text-cyan-400 font-mono">IoT OTA Manager</h1>
-              <p className="text-xs text-slate-500 font-mono">PC-A — Mission Control</p>
+              <h1 className="text-lg font-bold text-cyan-700 font-mono">IoT OTA Manager</h1>
+              <p className="text-xs text-slate-400 font-mono">PC-A — Mission Control</p>
             </div>
           </div>
-          <div className="flex items-center gap-1 ml-4">
+          <div className="flex items-center gap-1.5 ml-4">
             {(['fleet','firmware','logs','config'] as Tab[]).map(t => (
               <button key={t} onClick={() => setTab(t)} className={tabClass(t)}>
                 {t.charAt(0).toUpperCase() + t.slice(1)}
@@ -112,39 +112,39 @@ export default function App() {
         <div className="flex items-center gap-4">
           {/* Status chips */}
           <div className="flex items-center gap-2 text-xs font-mono">
-            <span className="flex items-center gap-1 text-green-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"/>
+            <span className="flex items-center gap-1.5 text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full font-medium">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"/>
               {onlineCount} online
             </span>
             {offlineCount > 0 && (
-              <span className="flex items-center gap-1 text-red-400">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-400"/>
+              <span className="flex items-center gap-1.5 text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-full font-medium">
+                <span className="w-2 h-2 rounded-full bg-rose-500"/>
                 {offlineCount} offline
               </span>
             )}
-            <span className="text-slate-600">|</span>
-            <span className="text-amber-400 bg-amber-900/30 border border-amber-800 px-2 py-0.5 rounded">
+            <span className="text-slate-300">|</span>
+            <span className="text-amber-800 bg-amber-50 border border-amber-300 px-2.5 py-1 rounded-md font-bold">
               {latestFw}
             </span>
           </div>
 
           {/* WebSocket status */}
-          <div className={`flex items-center gap-1.5 text-xs font-mono px-2 py-1 rounded-full border ${
-            connected ? 'border-green-700 text-green-400 bg-green-900/20' : 'border-red-700 text-red-400 bg-red-900/20'
+          <div className={`flex items-center gap-1.5 text-xs font-mono px-2.5 py-1 rounded-full border ${
+            connected ? 'border-emerald-300 text-emerald-700 bg-emerald-50' : 'border-rose-300 text-rose-700 bg-rose-50'
           }`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}/>
+            <span className={`w-2 h-2 rounded-full ${connected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}/>
             {connected ? 'Live' : 'Offline'}
           </div>
 
           {/* Clock */}
-          <span className="text-xs font-mono text-slate-500">
+          <span className="text-xs font-mono text-slate-500 font-medium">
             {now.toLocaleTimeString()}
           </span>
 
           {/* Batch push button */}
           {selectedIds.size >= 2 && (
             <button onClick={() => setShowBatch(true)}
-              className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-mono text-sm rounded-lg font-bold transition-colors">
+              className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white font-mono text-sm rounded-lg font-bold transition-colors shadow-xs">
               ⬆ Push Update ({selectedIds.size})
             </button>
           )}
@@ -154,13 +154,13 @@ export default function App() {
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
         {tab === 'fleet' && (
-          <aside className="w-52 border-r border-slate-700 bg-slate-900/50 p-4 shrink-0 overflow-y-auto">
-            <div className="mb-4">
-              <div className="text-xs font-mono text-slate-500 mb-2 uppercase tracking-wider">Groups</div>
+          <aside className="w-56 border-r border-slate-200 bg-white p-4 shrink-0 overflow-y-auto">
+            <div className="mb-5">
+              <div className="text-xs font-mono font-bold text-slate-400 mb-2 uppercase tracking-wider">Groups</div>
               <button
                 onClick={() => setGroupFilter(null)}
-                className={`w-full text-left px-2 py-1.5 rounded text-xs font-mono transition-colors mb-1 ${
-                  !groupFilter ? 'bg-cyan-900/30 text-cyan-400' : 'text-slate-400 hover:text-slate-200'
+                className={`w-full text-left px-3 py-2 rounded-lg text-xs font-mono transition-colors mb-1 ${
+                  !groupFilter ? 'bg-cyan-50 text-cyan-800 font-bold border-l-2 border-cyan-600' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                 }`}
               >
                 All Devices ({devices.length})
@@ -168,8 +168,8 @@ export default function App() {
               {groups.map(g => (
                 <button key={g.name}
                   onClick={() => setGroupFilter(groupFilter === g.name ? null : g.name)}
-                  className={`w-full text-left px-2 py-1.5 rounded text-xs font-mono transition-colors mb-1 ${
-                    groupFilter === g.name ? 'bg-cyan-900/30 text-cyan-400' : 'text-slate-400 hover:text-slate-200'
+                  className={`w-full text-left px-3 py-2 rounded-lg text-xs font-mono transition-colors mb-1 ${
+                    groupFilter === g.name ? 'bg-cyan-50 text-cyan-800 font-bold border-l-2 border-cyan-600' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                   }`}
                 >
                   {g.name} ({g.device_count})
@@ -177,11 +177,11 @@ export default function App() {
               ))}
             </div>
             <div className="mb-4">
-              <div className="text-xs font-mono text-slate-500 mb-2 uppercase tracking-wider">Firmware</div>
+              <div className="text-xs font-mono font-bold text-slate-400 mb-2 uppercase tracking-wider">Firmware</div>
               {firmware.map(fw => (
-                <div key={fw.version} className="flex justify-between px-2 py-1 text-xs font-mono">
-                  <span className={fw.version === latestFw ? 'text-amber-400' : 'text-slate-400'}>{fw.version}</span>
-                  <span className="text-slate-600">{fw.device_count}</span>
+                <div key={fw.version} className="flex justify-between px-3 py-1.5 text-xs font-mono rounded hover:bg-slate-50">
+                  <span className={fw.version === latestFw ? 'text-amber-700 font-bold' : 'text-slate-700'}>{fw.version}</span>
+                  <span className="text-slate-400 font-semibold">{fw.device_count}</span>
                 </div>
               ))}
             </div>

@@ -1,14 +1,14 @@
 @import "tailwindcss";
 
 body {
-  background-color: #0f172a;
-  color: #e2e8f0;
+  background-color: #f8fafc;
+  color: #0f172a;
   font-family: 'Inter', system-ui, sans-serif;
 }
 
 @keyframes led-pulse {
-  0%, 100% { box-shadow: 0 0 8px 2px #f59e0b, 0 0 20px 4px #f59e0b80; }
-  50% { box-shadow: 0 0 14px 4px #fbbf24, 0 0 30px 8px #fbbf2460; }
+  0%, 100% { box-shadow: 0 0 8px 2px #f59e0b, 0 0 18px 4px #f59e0b60; }
+  50% { box-shadow: 0 0 14px 5px #fbbf24, 0 0 28px 8px #fbbf2450; }
 }
 
 @keyframes board-flicker {
@@ -27,4 +27,3 @@ body {
   to { transform: translateX(0); opacity: 1; }
 }
 .animate-slide-in { animation: slide-in 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
-

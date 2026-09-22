@@ -26,28 +26,28 @@ export function LogsPage({ liveLogs, devices }: Props) {
   })
 
   const logColor = (level: string) => {
-    if (level === 'WARN') return 'text-amber-400'
-    if (level === 'ERROR') return 'text-red-400'
-    return 'text-slate-300'
+    if (level === 'WARN') return 'text-amber-800 font-medium'
+    if (level === 'ERROR') return 'text-rose-700 font-medium'
+    return 'text-slate-700'
   }
   const levelBadge = (level: string) => {
-    if (level === 'WARN') return 'bg-amber-900/50 text-amber-400'
-    if (level === 'ERROR') return 'bg-red-900/50 text-red-400'
-    return 'bg-green-900/30 text-green-400'
+    if (level === 'WARN') return 'bg-amber-50 text-amber-800 border border-amber-200 font-bold'
+    if (level === 'ERROR') return 'bg-rose-50 text-rose-700 border border-rose-200 font-bold'
+    return 'bg-slate-100 text-slate-700 border border-slate-200'
   }
 
   return (
     <div className="p-6 h-full flex flex-col">
       {/* Controls */}
       <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <h2 className="font-mono font-bold text-slate-200 mr-2">📋 Live Logs</h2>
+        <h2 className="font-mono font-bold text-slate-800 mr-2 text-base">📋 Live Logs</h2>
         <select value={deviceFilter} onChange={e => setDeviceFilter(e.target.value)}
-          className="bg-slate-700 border border-slate-600 text-slate-200 font-mono text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:border-cyan-500">
+          className="bg-white border border-slate-300 text-slate-800 font-mono text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-cyan-500 shadow-2xs font-medium">
           <option value="all">All Devices</option>
           {devices.map(d => <option key={d.id} value={d.id}>{d.id}</option>)}
         </select>
         <select value={levelFilter} onChange={e => setLevelFilter(e.target.value)}
-          className="bg-slate-700 border border-slate-600 text-slate-200 font-mono text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:border-cyan-500">
+          className="bg-white border border-slate-300 text-slate-800 font-mono text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-cyan-500 shadow-2xs font-medium">
           <option value="all">All Levels</option>
           <option value="INFO">INFO</option>
           <option value="WARN">WARN</option>
@@ -55,29 +55,29 @@ export function LogsPage({ liveLogs, devices }: Props) {
         </select>
         <button
           onClick={() => setAutoScroll(!autoScroll)}
-          className={`text-xs font-mono px-2 py-1.5 rounded-lg border transition-colors ${
-            autoScroll ? 'bg-cyan-900/30 border-cyan-700 text-cyan-400' : 'border-slate-600 text-slate-500'
+          className={`text-xs font-mono px-3 py-1.5 rounded-lg border transition-colors shadow-2xs font-medium ${
+            autoScroll ? 'bg-cyan-50 border-cyan-300 text-cyan-700 font-bold' : 'border-slate-300 text-slate-600 bg-white hover:bg-slate-50'
           }`}
         >
           Auto-scroll {autoScroll ? 'ON' : 'OFF'}
         </button>
         <button onClick={() => setLocalLogs([])}
-          className="text-xs font-mono px-2 py-1.5 rounded-lg border border-slate-600 text-slate-500 hover:text-slate-300 transition-colors">
+          className="text-xs font-mono px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors shadow-2xs font-medium">
           Clear
         </button>
-        <span className="ml-auto text-xs font-mono text-slate-600">{filtered.length} entries</span>
+        <span className="ml-auto text-xs font-mono text-slate-400 font-medium">{filtered.length} entries</span>
       </div>
 
       {/* Log stream */}
-      <div className="flex-1 bg-slate-900 border border-slate-700 rounded-xl p-4 overflow-y-auto font-mono text-xs">
+      <div className="flex-1 bg-white border border-slate-200 shadow-xs rounded-xl p-4 overflow-y-auto font-mono text-xs">
         {filtered.length === 0 && (
-          <div className="text-slate-600 italic">Waiting for log entries from devices...</div>
+          <div className="text-slate-400 italic">Waiting for log entries from devices...</div>
         )}
         {filtered.map((log, i) => (
-          <div key={i} className="flex gap-2 hover:bg-slate-800/50 px-1 py-0.5 rounded">
-            <span className="text-slate-600 shrink-0 w-16">{log.timestamp}</span>
-            <span className="text-cyan-500 shrink-0 w-20 truncate">[{log.device_id}]</span>
-            <span className={`shrink-0 w-12 text-center text-xs px-1 rounded ${levelBadge(log.level)}`}>{log.level}</span>
+          <div key={i} className="flex gap-2.5 hover:bg-slate-50 px-2 py-1 rounded transition-colors">
+            <span className="text-slate-400 shrink-0 w-16">{log.timestamp}</span>
+            <span className="text-cyan-700 font-bold shrink-0 w-20 truncate">[{log.device_id}]</span>
+            <span className={`shrink-0 w-14 text-center text-[10px] px-1.5 py-0.5 rounded ${levelBadge(log.level)}`}>{log.level}</span>
             <span className={logColor(log.level)}>{log.msg}</span>
           </div>
         ))}

@@ -56,27 +56,27 @@ export function AddDeviceModal({ groups, onConfirm, onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-md shadow-2xl">
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-md shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-slate-700">
-          <h2 className="text-lg font-bold text-cyan-400 font-mono">➕ Add New Device</h2>
-          <button onClick={onClose} className="text-slate-500 hover:text-slate-300 text-xl">✕</button>
+        <div className="flex items-center justify-between p-5 border-b border-slate-200">
+          <h2 className="text-lg font-bold text-cyan-700 font-mono">➕ Add New Device</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl font-bold">✕</button>
         </div>
 
-        <div className="p-5 space-y-5">
+        <div className="p-5 space-y-4">
           {/* Device ID */}
           <div>
-            <label className="block text-xs text-slate-400 font-mono mb-1.5">Device ID</label>
+            <label className="block text-xs text-slate-500 font-mono font-bold mb-1.5 uppercase tracking-wider">Device ID</label>
             <div className="flex gap-2">
               <input
                 value={deviceId}
                 onChange={e => setDeviceId(e.target.value.toUpperCase())}
-                className="flex-1 bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 font-mono text-sm text-cyan-300 focus:outline-none focus:border-cyan-500"
+                className="flex-1 bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 font-mono text-sm text-cyan-700 font-bold focus:outline-none focus:border-cyan-500"
               />
               <button
                 onClick={() => setDeviceId(genId())}
-                className="px-3 py-2 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-slate-400 text-xs font-mono"
+                className="px-3 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg text-slate-600 text-xs font-mono font-bold transition-colors"
                 title="Regenerate ID"
               >↺</button>
             </div>
@@ -85,11 +85,11 @@ export function AddDeviceModal({ groups, onConfirm, onClose }: Props) {
           {/* Group + Firmware row */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs text-slate-400 font-mono mb-1.5">Group</label>
+              <label className="block text-xs text-slate-500 font-mono font-bold mb-1.5 uppercase tracking-wider">Group</label>
               <select
                 value={group}
                 onChange={e => setGroup(e.target.value)}
-                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 font-mono text-sm text-slate-200 focus:outline-none focus:border-cyan-500"
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 font-mono text-sm text-slate-800 focus:outline-none focus:border-cyan-500"
               >
                 {groups.map(g => (
                   <option key={g.name} value={g.name}>{g.name}</option>
@@ -97,11 +97,11 @@ export function AddDeviceModal({ groups, onConfirm, onClose }: Props) {
               </select>
             </div>
             <div>
-              <label className="block text-xs text-slate-400 font-mono mb-1.5">Firmware</label>
+              <label className="block text-xs text-slate-500 font-mono font-bold mb-1.5 uppercase tracking-wider">Firmware</label>
               <select
                 value={firmware}
                 onChange={e => setFirmware(e.target.value)}
-                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 font-mono text-sm text-slate-200 focus:outline-none focus:border-cyan-500"
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 font-mono text-sm text-slate-800 focus:outline-none focus:border-cyan-500"
               >
                 {FIRMWARE_OPTIONS.map(v => <option key={v} value={v}>{v}</option>)}
               </select>
@@ -110,26 +110,26 @@ export function AddDeviceModal({ groups, onConfirm, onClose }: Props) {
 
           {/* Template picker */}
           <div>
-            <label className="block text-xs text-slate-400 font-mono mb-2">Choose Template</label>
+            <label className="block text-xs text-slate-500 font-mono font-bold mb-2 uppercase tracking-wider">Choose Template</label>
             <div className="grid grid-cols-2 gap-3">
               {TEMPLATES.map(t => (
                 <button
                   key={t.id}
                   onClick={() => setTemplate(t.id)}
-                  className={`rounded-xl border-2 p-4 text-left transition-all ${
+                  className={`rounded-xl border-2 p-4 text-left transition-all cursor-pointer ${
                     template === t.id
-                      ? 'border-cyan-500 bg-cyan-900/30 shadow-lg shadow-cyan-900/30'
-                      : 'border-slate-600 bg-slate-700/50 hover:border-slate-500'
+                      ? 'border-cyan-600 bg-cyan-50 ring-2 ring-cyan-200 shadow-xs'
+                      : 'border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-slate-100/50'
                   }`}
                 >
                   <div className="text-3xl mb-2">{t.icon}</div>
-                  <div className={`font-mono font-bold text-sm ${template === t.id ? 'text-cyan-300' : 'text-slate-300'}`}>
+                  <div className={`font-mono font-bold text-sm ${template === t.id ? 'text-cyan-800' : 'text-slate-800'}`}>
                     {t.name}
                   </div>
-                  <div className="text-xs text-slate-500 font-mono mt-1">{t.desc}</div>
-                  <div className="text-xs text-slate-600 font-mono">{t.sub}</div>
+                  <div className="text-xs text-slate-500 font-mono mt-1 font-medium">{t.desc}</div>
+                  <div className="text-[11px] text-slate-400 font-mono">{t.sub}</div>
                   {template === t.id && (
-                    <div className="mt-2 text-xs text-cyan-400 font-mono">✓ Selected</div>
+                    <div className="mt-2 text-xs text-cyan-700 font-mono font-bold">✓ Selected</div>
                   )}
                 </button>
               ))}
@@ -138,15 +138,15 @@ export function AddDeviceModal({ groups, onConfirm, onClose }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="flex gap-3 p-5 border-t border-slate-700">
+        <div className="flex gap-3 p-5 border-t border-slate-200 bg-slate-50/50 rounded-b-2xl">
           <button onClick={onClose}
-            className="flex-1 py-2.5 rounded-lg border border-slate-600 text-slate-400 hover:text-slate-300 font-mono text-sm transition-colors">
+            className="flex-1 py-2.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-600 font-mono text-sm font-semibold transition-colors">
             Cancel
           </button>
           <button
             onClick={handleConfirm}
             disabled={saving || !deviceId}
-            className="flex-1 py-2.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white font-mono text-sm font-bold transition-colors"
+            className="flex-1 py-2.5 rounded-lg bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white font-mono text-sm font-bold shadow-xs transition-colors"
           >
             {saving ? 'Registering...' : '✅ Add & Register'}
           </button>

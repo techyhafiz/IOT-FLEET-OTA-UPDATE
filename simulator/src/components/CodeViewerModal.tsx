@@ -1,6 +1,6 @@
 import React from 'react'
 import SyntaxHighlighter from 'react-syntax-highlighter'
-import { atomOneDark } from 'react-syntax-highlighter/dist/esm/styles/hljs'
+import { atomOneLight } from 'react-syntax-highlighter/dist/esm/styles/hljs'
 import type { Device } from '@shared/types'
 
 const LED_SKETCH = (id: string, apiBase: string) => `#include <Arduino.h>
@@ -60,7 +60,8 @@ void checkOTA() {
       Serial.printf("OTA failed: %s\\n", httpUpdate.getLastErrorString().c_str());
       break;
   }
-}`
+}
+`
 
 const LCD_SKETCH = (id: string, apiBase: string) => `#include <Arduino.h>
 #include <WiFi.h>
@@ -99,15 +100,14 @@ void setup() {
 }
 
 void loop() {
-  // Display device status on LCD
-  lcd.setCursor(0, 0);
-  lcd.print("Device:         ");
-  lcd.setCursor(0, 1);
-  lcd.print(String(device_id).substring(0, 16));
-
+  // Rotate message every 5s
   delay(5000);
+  lcd.setCursor(0, 0);
+  lcd.print("OTA System      ");
+  lcd.setCursor(0, 1);
+  lcd.print("v1.2.0 Ready    ");
 
-  checkOTA();  // Poll OTA server
+  checkOTA();
 }
 
 void checkOTA() {
@@ -116,13 +116,12 @@ void checkOTA() {
 
   if (ret == HTTP_UPDATE_OK) {
     lcd.clear();
-    lcd.print("OTA Success!");
-    lcd.setCursor(0, 1);
-    lcd.print("Rebooting...");
-    delay(1000);
+    lcd.setCursor(0, 0);
+    lcd.print("Flashing OTA...");
     ESP.restart();
   }
-}`
+}
+`
 
 interface Props {
   device: Device
@@ -136,30 +135,30 @@ export function CodeViewerModal({ device, onClose }: Props) {
     : LED_SKETCH(device.id, apiBase)
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl">
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-slate-700 shrink-0">
+        <div className="flex items-center justify-between p-5 border-b border-slate-200 shrink-0 bg-white">
           <div>
-            <h2 className="text-base font-bold text-cyan-400 font-mono">
+            <h2 className="text-base font-bold text-cyan-700 font-mono">
               📄 {device.id} — Arduino Sketch
             </h2>
             <p className="text-xs text-slate-500 font-mono mt-0.5">
               Template: {device.template === 'lcd' ? '16×2 LCD Display' : '2-LED Controller'} · Read-only
             </p>
           </div>
-          <button onClick={onClose} className="text-slate-500 hover:text-slate-300 text-xl">✕</button>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl font-bold">✕</button>
         </div>
 
         {/* Code */}
-        <div className="overflow-y-auto flex-1 rounded-b-none">
+        <div className="overflow-y-auto flex-1 rounded-b-none bg-slate-50">
           <SyntaxHighlighter
             language="cpp"
-            style={atomOneDark}
+            style={atomOneLight}
             showLineNumbers
             customStyle={{
               margin: 0,
-              background: '#0d1117',
+              background: '#f8fafc',
               fontSize: '12px',
               lineHeight: '1.6',
               borderRadius: 0,
@@ -170,8 +169,8 @@ export function CodeViewerModal({ device, onClose }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-slate-700 bg-slate-900/50 rounded-b-2xl shrink-0">
-          <p className="text-xs text-slate-500 font-mono text-center">
+        <div className="p-4 border-t border-slate-200 bg-slate-50/80 rounded-b-2xl shrink-0">
+          <p className="text-xs text-slate-600 font-mono text-center font-medium">
             💡 This is the exact code this device would run on real ESP32 hardware.
             The simulator mirrors its GPIO behavior and OTA polling faithfully.
           </p>

@@ -60,22 +60,22 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-[#0f172a] text-slate-200">
+      <div className="min-h-screen bg-slate-50 text-slate-900">
         {/* Top bar */}
-        <header className="border-b border-slate-700 bg-slate-900 px-6 py-3 flex items-center justify-between">
+        <header className="border-b border-slate-200 bg-white px-6 py-3 flex items-center justify-between shadow-xs">
           <div className="flex items-center gap-3">
             <span className="text-2xl">🤖</span>
             <div>
-              <h1 className="text-lg font-bold text-cyan-400 font-mono">ESP32 Device Simulator</h1>
-              <p className="text-xs text-slate-500">PC-B — Device Farm</p>
+              <h1 className="text-lg font-bold text-cyan-700 font-mono">ESP32 Device Simulator</h1>
+              <p className="text-xs text-slate-400 font-mono">PC-B — Device Farm</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-slate-400 font-mono">{devices.length} device{devices.length !== 1 ? 's' : ''}</span>
+            <span className="text-sm text-slate-500 font-mono font-medium">{devices.length} device{devices.length !== 1 ? 's' : ''}</span>
             <div className={`flex items-center gap-2 text-xs font-mono px-3 py-1.5 rounded-full border ${
-              connected ? 'border-green-700 bg-green-900/30 text-green-400' : 'border-red-700 bg-red-900/30 text-red-400'
+              connected ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-rose-300 bg-rose-50 text-rose-700'
             }`}>
-              <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}/>
+              <span className={`w-2 h-2 rounded-full ${connected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}/>
               {connected ? 'Connected to PC-A' : 'Reconnecting...'}
             </div>
           </div>
