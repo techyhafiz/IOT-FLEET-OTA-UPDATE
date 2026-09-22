@@ -31,6 +31,8 @@ export interface FirmwareVersion {
   sha256?: string;
   is_faulty?: boolean;
   device_count?: number;
+  filename?: string;
+  has_source?: boolean;
 }
 
 export interface Group {
@@ -55,6 +57,7 @@ export type WSEventType =
   | 'ota_progress'
   | 'ota_complete'
   | 'config_pushed'
+  | 'firmware_added'
   | 'ping';
 
 export interface WSEvent {

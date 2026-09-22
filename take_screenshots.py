@@ -20,72 +20,68 @@ async def capture():
         )
         page = await context.new_page()
 
-        # 1. PC-A Dashboard (Fleet Overview with Wokwi boards)
-        print("Capturing PC-A Dashboard...")
+        # 1. PC-A Dashboard (Home Overview with top stats, donut chart, devices, logs table)
+        print("Capturing PC-A Dashboard Home...")
         await page.goto("http://localhost:5173", wait_until="networkidle")
         await asyncio.sleep(2)
-        p1 = os.path.join(OUTPUT_DIR, "pc_a_dashboard_fleet.png")
-        p1_art = os.path.join(ARTIFACT_DIR, "pc_a_dashboard_fleet.png")
+        p1 = os.path.join(OUTPUT_DIR, "pc_a_dashboard_home.png")
+        p1_art = os.path.join(ARTIFACT_DIR, "pc_a_dashboard_home.png")
         await page.screenshot(path=p1)
         await page.screenshot(path=p1_art)
         print(f"Saved: {p1}")
 
-        # 2. PC-A Dashboard (Analytics Tab)
-        print("Capturing PC-A Analytics Dashboard...")
-        analytics_tab = page.locator("text=Analytics").first
-        if await analytics_tab.count() > 0:
-            await analytics_tab.click()
-            await asyncio.sleep(1.5)
-            p_an = os.path.join(OUTPUT_DIR, "pc_a_dashboard_analytics.png")
-            p_an_art = os.path.join(ARTIFACT_DIR, "pc_a_dashboard_analytics.png")
-            await page.screenshot(path=p_an)
-            await page.screenshot(path=p_an_art)
-            print(f"Saved: {p_an}")
-
-        # 3. PC-A Dashboard (Firmware Diff Modal)
-        print("Capturing PC-A Firmware Diff Modal...")
-        await page.locator("text=Fleet").first.click()
-        await asyncio.sleep(0.5)
-        diff_btn = page.locator("text=C++ Diff Viewer").first
-        if await diff_btn.count() > 0:
-            await diff_btn.click()
-            await asyncio.sleep(1.5)
-            p_diff = os.path.join(OUTPUT_DIR, "pc_a_dashboard_diff.png")
-            p_diff_art = os.path.join(ARTIFACT_DIR, "pc_a_dashboard_diff.png")
-            await page.screenshot(path=p_diff)
-            await page.screenshot(path=p_diff_art)
-            print(f"Saved: {p_diff}")
-            close_diff = page.locator("text=Close Diff Inspector").first
-            if await close_diff.count() > 0:
-                await close_diff.click()
-            else:
-                await page.keyboard.press("Escape")
+        # 2. PC-A Update Firmware Popup Modal
+        print("Capturing PC-A Update Firmware Popup...")
+        # Select first device and click Update Firmware
+        up_btn = page.locator("text=Update Firmware").first
+        if await up_btn.count() > 0:
+            await up_btn.click()
             await asyncio.sleep(1)
-
-        # 4. PC-A Multi-Stage Batch OTA Pipeline Modal
-        print("Capturing PC-A Batch OTA Pipeline Modal...")
-        await page.goto("http://localhost:5173", wait_until="networkidle")
-        await asyncio.sleep(1)
-        # Click checkboxes on first two devices
-        boxes = page.locator("div.w-5.h-5")
-        if await boxes.count() >= 2:
-            await boxes.nth(0).click()
-            await boxes.nth(1).click()
+            p_popup = os.path.join(OUTPUT_DIR, "pc_a_dashboard_update_popup.png")
+            p_popup_art = os.path.join(ARTIFACT_DIR, "pc_a_dashboard_update_popup.png")
+            await page.screenshot(path=p_popup)
+            await page.screenshot(path=p_popup_art)
+            print(f"Saved: {p_popup}")
+            # Close modal
+            cancel_btn = page.locator("text=Cancel").first
+            if await cancel_btn.count() > 0:
+                await cancel_btn.click()
             await asyncio.sleep(0.5)
-        push_btn = page.locator("text=Push OTA").first
-        if await push_btn.count() > 0:
-            await push_btn.click()
-            await asyncio.sleep(1)
-            # Click Start Pipeline to capture active telemetry in progress
-            start_btn = page.locator("text=Start Pipeline").first
-            if await start_btn.count() > 0:
-                await start_btn.click()
+
+        # 3. PC-A Firmware Repository Tab
+        print("Capturing PC-A Firmware Tab...")
+        fw_tab = page.locator("text=Firmware").first
+        if await fw_tab.count() > 0:
+            await fw_tab.click()
+            await asyncio.sleep(1.5)
+            p_fw = os.path.join(OUTPUT_DIR, "pc_a_dashboard_firmware.png")
+            p_fw_art = os.path.join(ARTIFACT_DIR, "pc_a_dashboard_firmware.png")
+            await page.screenshot(path=p_fw)
+            await page.screenshot(path=p_fw_art)
+            print(f"Saved: {p_fw}")
+
+            # 4. Upload Modal with Progress Bar
+            print("Capturing PC-A Firmware Upload with Validation...")
+            upload_btn = page.locator("text=Upload New Firmware").first
+            if await upload_btn.count() > 0:
+                await upload_btn.click()
+                await asyncio.sleep(0.5)
+                # Load sample C file
+                sample_btn = page.locator("text=Load Sample C File").first
+                if await sample_btn.count() > 0:
+                    await sample_btn.click()
+                    await asyncio.sleep(0.5)
+                # Trigger Upload & Validate to show progress bar
+                val_btn = page.locator("text=Upload & Validate").first
+                if await val_btn.count() > 0:
+                    await val_btn.click()
+                    await asyncio.sleep(0.5)
+                p_val = os.path.join(OUTPUT_DIR, "pc_a_dashboard_firmware_upload.png")
+                p_val_art = os.path.join(ARTIFACT_DIR, "pc_a_dashboard_firmware_upload.png")
+                await page.screenshot(path=p_val)
+                await page.screenshot(path=p_val_art)
+                print(f"Saved: {p_val}")
                 await asyncio.sleep(1.5)
-            p_ota = os.path.join(OUTPUT_DIR, "pc_a_dashboard_batch_pipeline.png")
-            p_ota_art = os.path.join(ARTIFACT_DIR, "pc_a_dashboard_batch_pipeline.png")
-            await page.screenshot(path=p_ota)
-            await page.screenshot(path=p_ota_art)
-            print(f"Saved: {p_ota}")
 
         # 5. PC-B Simulator (Home Grid with Wokwi ESP32 boards)
         print("Capturing PC-B Simulator Grid...")
@@ -107,18 +103,8 @@ async def capture():
         await page.screenshot(path=p4_art)
         print(f"Saved: {p4}")
 
-        # 7. PC-B Simulator (LCD Device Detail with Wokwi 1602 LCD)
-        print("Capturing PC-B LCD Device Detail...")
-        await page.goto("http://localhost:3000/device/ESP-B2C4", wait_until="networkidle")
-        await asyncio.sleep(2)
-        p5 = os.path.join(OUTPUT_DIR, "pc_b_simulator_lcd_detail.png")
-        p5_art = os.path.join(ARTIFACT_DIR, "pc_b_simulator_lcd_detail.png")
-        await page.screenshot(path=p5)
-        await page.screenshot(path=p5_art)
-        print(f"Saved: {p5}")
-
         await browser.close()
-        print("All enhanced screenshots successfully captured!")
+        print("All screenshots successfully captured!")
 
 if __name__ == "__main__":
     asyncio.run(capture())

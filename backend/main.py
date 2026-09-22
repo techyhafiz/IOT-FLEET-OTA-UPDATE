@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -7,6 +7,8 @@ from typing import Optional, Any
 import asyncio
 import json
 import os
+import hashlib
+import re
 from datetime import datetime
 
 app = FastAPI(title="IoT OTA Dashboard Backend")
@@ -33,6 +35,8 @@ FIRMWARE_VERSIONS = [
         "date": "2026-09-20",
         "sha256": "4b82d9f1c7e9a3b2e5d8f0c1a4b7e2d9f8a3c5b7d1e4f6a9b2c8d3e5f7a1b4c6",
         "is_faulty": False,
+        "filename": "firmware_v1.2.0.cpp",
+        "has_source": True,
     },
     {
         "version": "v1.1.0",
@@ -41,6 +45,8 @@ FIRMWARE_VERSIONS = [
         "date": "2026-09-10",
         "sha256": "7c91e2a4b8d6f0c3e5a7b9d1f4c6e8a0b2d5f7c9e1a3b6d8f0c2e4a7b9d1f3c5",
         "is_faulty": False,
+        "filename": "firmware_v1.1.0.cpp",
+        "has_source": True,
     },
     {
         "version": "v1.0.0",
@@ -49,6 +55,8 @@ FIRMWARE_VERSIONS = [
         "date": "2026-09-01",
         "sha256": "3a7b9c1d5e8f0a2b4c6e8d0f2a4b6c8e0d2f4a6b8c0d2e4f6a8b0c2d4e6f8a0b",
         "is_faulty": False,
+        "filename": "firmware_v1.0.0.cpp",
+        "has_source": True,
     },
     {
         "version": "v2.2.0-faulty",
@@ -57,6 +65,8 @@ FIRMWARE_VERSIONS = [
         "date": "2026-09-22",
         "sha256": "deadbeef8badf00ddeadbeef8badf00ddeadbeef8badf00ddeadbeef8badf00d",
         "is_faulty": True,
+        "filename": "firmware_v2.2.0_faulty.cpp",
+        "has_source": True,
     },
 ]
 
@@ -259,6 +269,13 @@ class ConfigPush(BaseModel):
     device_ids: list[str]
     config: dict
 
+class FirmwareUploadJSON(BaseModel):
+    version: Optional[str] = None
+    changelog: Optional[str] = ""
+    filename: Optional[str] = "firmware.cpp"
+    code: Optional[str] = None
+    size: Optional[int] = None
+
 # ─── Helper ───────────────────────────────────────────────────────────────────
 
 def make_device(data: RegisterDevice) -> dict:
@@ -391,6 +408,79 @@ async def get_logs(device_id: str):
     return logs.get(device_id, [])
 
 # Firmware
+def compute_next_version() -> str:
+    versions = [fw["version"] for fw in FIRMWARE_VERSIONS if not fw.get("is_faulty")]
+    for v in versions:
+        m = re.match(r"v?(\d+)\.(\d+)\.(\d+)", v)
+        if m:
+            major, minor, patch = int(m.group(1)), int(m.group(2)), int(m.group(3))
+            return f"v{major}.{minor + 1}.0"
+    return "v1.3.0"
+
+async def register_firmware_entry(
+    version: Optional[str],
+    changelog: str,
+    filename: str,
+    content_bytes: bytes,
+    code_str: Optional[str] = None
+):
+    if not version or not version.strip():
+        m = re.search(r"v\d+\.\d+\.\d+", filename)
+        if m:
+            ver = m.group(0)
+        else:
+            ver = compute_next_version()
+    else:
+        ver = version.strip()
+        if not ver.startswith("v") and ver[0].isdigit():
+            ver = f"v{ver}"
+
+    sha256_hash = hashlib.sha256(content_bytes).hexdigest()
+    file_size = len(content_bytes) if len(content_bytes) > 0 else 512000
+
+    is_source = False
+    source_exts = (".c", ".cpp", ".ino", ".h", ".hpp", ".txt")
+    if filename.lower().endswith(source_exts) or code_str:
+        is_source = True
+        if code_str:
+            FIRMWARE_CODE[ver] = code_str
+        else:
+            try:
+                FIRMWARE_CODE[ver] = content_bytes.decode("utf-8")
+            except Exception:
+                FIRMWARE_CODE[ver] = content_bytes.decode("latin-1", errors="replace")
+
+    fw_dir = os.path.join(os.path.dirname(__file__), "firmware")
+    os.makedirs(fw_dir, exist_ok=True)
+    bin_path = os.path.join(fw_dir, f"{ver}.bin")
+    with open(bin_path, "wb") as f:
+        f.write(content_bytes if content_bytes else f"Firmware {ver}\n{changelog}".encode())
+
+    if is_source and ver in FIRMWARE_CODE:
+        src_path = os.path.join(fw_dir, f"{ver}.cpp")
+        with open(src_path, "w", encoding="utf-8") as f:
+            f.write(FIRMWARE_CODE[ver])
+
+    existing = next((fw for fw in FIRMWARE_VERSIONS if fw["version"] == ver), None)
+    entry = {
+        "version": ver,
+        "size": file_size,
+        "changelog": changelog or f"Uploaded {filename} with verified SHA-256 integrity.",
+        "date": datetime.utcnow().strftime("%Y-%m-%d"),
+        "sha256": sha256_hash,
+        "is_faulty": "faulty" in ver.lower(),
+        "filename": filename,
+        "has_source": is_source or (ver in FIRMWARE_CODE),
+    }
+
+    if existing:
+        existing.update(entry)
+    else:
+        FIRMWARE_VERSIONS.insert(0, entry)
+
+    await manager.broadcast("firmware_added", ver, entry)
+    return entry
+
 @app.get("/api/firmware")
 async def list_firmware():
     result = []
@@ -400,18 +490,42 @@ async def list_firmware():
 
 @app.post("/api/firmware")
 async def add_firmware(version: str, changelog: str = ""):
-    FIRMWARE_VERSIONS.insert(0, {
-        "version": version,
-        "size": 500000,
-        "changelog": changelog,
-        "date": datetime.utcnow().strftime("%Y-%m-%d"),
-    })
-    # Create placeholder file
-    fw_dir = os.path.join(os.path.dirname(__file__), "firmware")
-    os.makedirs(fw_dir, exist_ok=True)
-    with open(os.path.join(fw_dir, f"{version}.bin"), "w") as f:
-        f.write(f"Firmware {version}\n{changelog}\n")
-    return {"created": version}
+    entry = await register_firmware_entry(
+        version=version,
+        changelog=changelog,
+        filename=f"{version}.bin",
+        content_bytes=f"Firmware {version}\n{changelog}\n".encode()
+    )
+    return {"created": version, "entry": entry}
+
+@app.post("/api/firmware/upload")
+async def upload_firmware(
+    file: UploadFile = File(...),
+    version: Optional[str] = Form(None),
+    changelog: Optional[str] = Form("")
+):
+    content = await file.read()
+    filename = file.filename or "firmware.bin"
+    entry = await register_firmware_entry(
+        version=version,
+        changelog=changelog or "",
+        filename=filename,
+        content_bytes=content
+    )
+    return entry
+
+@app.post("/api/firmware/upload-source")
+async def upload_firmware_source(payload: FirmwareUploadJSON):
+    code_str = payload.code or "// No source code provided\n"
+    content_bytes = code_str.encode("utf-8")
+    entry = await register_firmware_entry(
+        version=payload.version,
+        changelog=payload.changelog or "",
+        filename=payload.filename or "firmware.cpp",
+        content_bytes=content_bytes,
+        code_str=code_str
+    )
+    return entry
 
 @app.get("/api/firmware/{version}/code")
 async def get_firmware_code(version: str):

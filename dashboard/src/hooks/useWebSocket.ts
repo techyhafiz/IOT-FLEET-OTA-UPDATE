@@ -67,6 +67,13 @@ export const api = {
     })
     return r.json()
   },
+  async upload(path: string, formData: FormData) {
+    const r = await fetch(`${API}${path}`, {
+      method: 'POST',
+      body: formData,
+    })
+    return r.json()
+  },
 }
 
 

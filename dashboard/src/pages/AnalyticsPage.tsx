@@ -108,42 +108,74 @@ export function AnalyticsPage({ devices, firmware }: Props) {
         </button>
       </div>
 
-      {/* Metric Cards */}
+      {/* Metric Cards with Professional Visual Accents */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
-          <div className="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider">Fleet Health Index</div>
-          <div className="flex items-baseline gap-2 mt-2">
-            <span className="text-2xl font-bold font-mono text-emerald-600">98.9%</span>
-            <span className="text-xs font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-bold">OPTIMAL</span>
+        {/* Fleet Health */}
+        <div className="bg-gradient-to-br from-emerald-50/60 via-white to-white border border-emerald-200/90 rounded-2xl p-5 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-mono font-bold text-slate-500 uppercase tracking-wider">Fleet Health Index</span>
+            <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center text-sm font-bold shadow-2xs">
+              🛡️
+            </div>
           </div>
-          <p className="text-[11px] font-mono text-slate-400 mt-2">Zero packet drop in last 60 mins</p>
+          <div className="flex items-baseline gap-2 mt-3">
+            <span className="text-3xl font-bold font-mono text-emerald-700 tracking-tight">98.9%</span>
+            <span className="text-[10px] font-mono text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full font-bold">
+              OPTIMAL
+            </span>
+          </div>
+          <p className="text-[11px] font-mono text-slate-500 mt-2">Zero packet drop across mesh</p>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
-          <div className="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider">Active Connectivity</div>
-          <div className="flex items-baseline gap-2 mt-2">
-            <span className="text-2xl font-bold font-mono text-cyan-700">{online} / {total}</span>
-            <span className="text-xs font-mono text-cyan-700 bg-cyan-50 px-2 py-0.5 rounded-full font-bold">ONLINE</span>
+        {/* Active Connectivity */}
+        <div className="bg-gradient-to-br from-cyan-50/60 via-white to-white border border-cyan-200/90 rounded-2xl p-5 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-mono font-bold text-slate-500 uppercase tracking-wider">Active Connectivity</span>
+            <div className="w-8 h-8 rounded-xl bg-cyan-100 text-cyan-800 flex items-center justify-center text-sm font-bold shadow-2xs">
+              🔌
+            </div>
           </div>
-          <p className="text-[11px] font-mono text-slate-400 mt-2">{updating > 0 ? `${updating} flashing now` : 'All nodes in heartbeat sync'}</p>
+          <div className="flex items-baseline gap-2 mt-3">
+            <span className="text-3xl font-bold font-mono text-cyan-800 tracking-tight">{online} / {total}</span>
+            <span className="text-[10px] font-mono text-cyan-800 bg-cyan-100 border border-cyan-300 px-2 py-0.5 rounded-full font-bold">
+              ONLINE
+            </span>
+          </div>
+          <p className="text-[11px] font-mono text-slate-500 mt-2">{updating > 0 ? `${updating} flashing now` : 'All nodes in heartbeat sync'}</p>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
-          <div className="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider">OTA Success Rate</div>
-          <div className="flex items-baseline gap-2 mt-2">
-            <span className="text-2xl font-bold font-mono text-slate-900">96.8%</span>
-            <span className="text-xs font-mono text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full font-bold">31 / 32</span>
+        {/* OTA Success Rate */}
+        <div className="bg-gradient-to-br from-indigo-50/60 via-white to-white border border-indigo-200/90 rounded-2xl p-5 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-mono font-bold text-slate-500 uppercase tracking-wider">OTA Success Rate</span>
+            <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-800 flex items-center justify-center text-sm font-bold shadow-2xs">
+              🎯
+            </div>
           </div>
-          <p className="text-[11px] font-mono text-slate-400 mt-2">1 self-healing auto-rollback</p>
+          <div className="flex items-baseline gap-2 mt-3">
+            <span className="text-3xl font-bold font-mono text-indigo-800 tracking-tight">96.8%</span>
+            <span className="text-[10px] font-mono text-indigo-800 bg-indigo-100 border border-indigo-300 px-2 py-0.5 rounded-full font-bold">
+              31 / 32
+            </span>
+          </div>
+          <p className="text-[11px] font-mono text-slate-500 mt-2">1 self-healing auto-rollback</p>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
-          <div className="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider">Avg Transfer Speed</div>
-          <div className="flex items-baseline gap-2 mt-2">
-            <span className="text-2xl font-bold font-mono text-amber-600">192 KB/s</span>
-            <span className="text-xs font-mono text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full font-bold">Wi-Fi</span>
+        {/* Avg Transfer Speed */}
+        <div className="bg-gradient-to-br from-amber-50/60 via-white to-white border border-amber-200/90 rounded-2xl p-5 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-mono font-bold text-slate-500 uppercase tracking-wider">Avg Transfer Speed</span>
+            <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center text-sm font-bold shadow-2xs">
+              ⚡
+            </div>
           </div>
-          <p className="text-[11px] font-mono text-slate-400 mt-2">Avg duration: 4.1s per node</p>
+          <div className="flex items-baseline gap-2 mt-3">
+            <span className="text-3xl font-bold font-mono text-amber-800 tracking-tight">192 KB/s</span>
+            <span className="text-[10px] font-mono text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full font-bold">
+              Wi-Fi Direct
+            </span>
+          </div>
+          <p className="text-[11px] font-mono text-slate-500 mt-2">Avg duration: 4.1s per node</p>
         </div>
       </div>
 
