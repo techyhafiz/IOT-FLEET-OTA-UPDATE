@@ -7,10 +7,10 @@ import { DevicePanel } from './components/DevicePanel'
 import { UpdateFirmwareModal } from './components/UpdateFirmwareModal'
 import './index.css'
 
-type Tab = 'home' | 'firmware'
+export type NavTab = 'home' | 'devices' | 'firmware' | 'deployments' | 'monitoring' | 'settings'
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>('home')
+  const [tab, setTab] = useState<NavTab>('home')
   const [devices, setDevices] = useState<Device[]>([])
   const [firmware, setFirmware] = useState<FirmwareVersion[]>([])
   const [liveLogs, setLiveLogs] = useState<LogEntry[]>([])
@@ -71,7 +71,7 @@ export default function App() {
   const { connected } = useWebSocket(handleWsEvent)
 
   const onlineCount = devices.filter(d => d.online).length
-  const latestFw = firmware[0]?.version ?? '—'
+  const latestFw = firmware[0]?.version ?? 'v1.3.0'
 
   const toggleSelect = (id: string) =>
     setSelectedIds(prev => {
@@ -98,109 +98,245 @@ export default function App() {
     await loadAll()
   }
 
-  const tabClass = (t: Tab) =>
-    `px-4 py-2 text-xs font-mono rounded-xl transition-all font-bold flex items-center gap-1.5 ${
-      tab === t
-        ? 'bg-cyan-700 text-white shadow-xs'
-        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-    }`
+  const openUpdateModalForDevice = (deviceId?: string) => {
+    if (deviceId) {
+      setSelectedIds(new Set([deviceId]))
+    }
+    setShowUpdateModal(true)
+  }
+
+  const formattedUtcTime = now.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  }) + ' UTC'
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
-      {/* Top Navigation */}
-      <header className="border-b border-slate-200 bg-white px-6 py-3 flex items-center justify-between shrink-0 shadow-xs">
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-600 to-blue-700 text-white flex items-center justify-center font-bold text-lg shadow-xs">
-              ⚡
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-base font-bold text-slate-900 font-mono tracking-tight">IoT OTA Mission Control</h1>
-                <span className="text-[10px] font-mono font-bold bg-cyan-100 text-cyan-800 border border-cyan-300 px-2 py-0.5 rounded-full">
-                  PC-A
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-600 font-mono font-medium">ESP32 Fleet Telemetry & OTA Deployment</p>
-            </div>
+    <div className="h-screen bg-slate-50/50 text-slate-900 flex flex-col font-sans overflow-hidden">
+      {/* ─── TOP MASTER NAVBAR ─────────────────────────────────────────────────── */}
+      <header className="border-b border-slate-200 bg-white px-6 py-3 flex items-center justify-between shrink-0 shadow-2xs z-20">
+        {/* Left: Branding & Subtitle */}
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-bold text-xl shadow-xs">
+            ⚡
           </div>
-
-          {/* Only 2 Tabs: Home and Firmware with crisp SVG icons */}
-          <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-2xl border border-slate-200">
-            <button onClick={() => setTab('home')} className={tabClass('home')}>
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-              </svg>
-              Home
-            </button>
-            <button onClick={() => setTab('firmware')} className={tabClass('firmware')}>
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-              </svg>
-              Firmware
-            </button>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-base font-bold text-slate-900 font-sans tracking-tight">IoT OTA Mission Control</h1>
+              <span className="text-[10px] font-mono font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 px-2 py-0.5 rounded-full">
+                PC-A
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 font-sans">ESP32 Fleet Telemetry & OTA Deployment</p>
           </div>
         </div>
 
+        {/* Right: Online Pill, WS Status, UTC Clock, Bell, Profile Avatar */}
         <div className="flex items-center gap-3">
-          {/* Status chips: De-duplicated (Target FW is prominently displayed in KPI card below) */}
-          <div className="flex items-center gap-2 text-xs font-mono">
-            <span className="flex items-center gap-1.5 text-emerald-800 bg-emerald-50 border border-emerald-300 px-3 py-1 rounded-full font-bold shadow-2xs">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              {onlineCount} Online
-            </span>
-          </div>
+          {/* Online count */}
+          <span className="flex items-center gap-1.5 text-xs font-sans text-emerald-800 bg-emerald-50 border border-emerald-300 px-3 py-1 rounded-full font-semibold shadow-2xs">
+            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            {onlineCount} Online
+          </span>
 
           {/* WebSocket transport status */}
           <div
-            className={`flex items-center gap-1.5 text-xs font-mono px-3 py-1 rounded-full border font-semibold ${
+            className={`flex items-center gap-1.5 text-xs font-sans px-3 py-1 rounded-full border font-semibold shadow-2xs ${
               connected
-                ? 'border-indigo-300 text-indigo-700 bg-indigo-50'
-                : 'border-rose-300 text-rose-700 bg-rose-50'
+                ? 'border-indigo-200 text-indigo-700 bg-indigo-50'
+                : 'border-rose-200 text-rose-700 bg-rose-50'
             }`}
           >
             <span
               className={`w-2 h-2 rounded-full ${
-                connected ? 'bg-indigo-500 animate-ping' : 'bg-rose-500'
+                connected ? 'bg-indigo-600 animate-pulse' : 'bg-rose-500'
               }`}
             />
             {connected ? 'WS Live' : 'WS Offline'}
           </div>
 
           {/* Clock: Anchored with icon and timezone */}
-          <span className="flex items-center gap-1.5 text-xs font-mono text-slate-700 font-semibold bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs">
+          <span className="flex items-center gap-1.5 text-xs font-mono text-slate-700 font-medium bg-slate-100/80 px-3 py-1 rounded-full border border-slate-200 shadow-2xs">
             <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <circle cx="12" cy="12" r="10" />
               <polyline points="12 6 12 12 16 14" />
             </svg>
-            {now.toLocaleTimeString()}
-            <span className="text-[10px] text-slate-400 font-bold">UTC</span>
+            {formattedUtcTime}
           </span>
+
+          {/* Notification Bell */}
+          <button
+            title="Notifications"
+            className="w-8 h-8 rounded-full border border-slate-200 hover:bg-slate-50 flex items-center justify-center text-slate-600 cursor-pointer transition-colors shadow-2xs"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+            </svg>
+          </button>
+
+          {/* User Avatar */}
+          <div className="w-8 h-8 rounded-full bg-emerald-800 text-white font-bold flex items-center justify-center text-sm shadow-xs cursor-pointer">
+            H
+          </div>
         </div>
       </header>
 
-      {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto">
-        {tab === 'home' && (
-          <FleetGrid
-            devices={devices}
-            firmware={firmware}
-            logs={liveLogs}
-            selectedIds={selectedIds}
-            onToggleSelect={toggleSelect}
-            onToggleAll={toggleAll}
-            onOpenDevice={d => setPanelDevice(d)}
-            onOpenUpdateModal={() => setShowUpdateModal(true)}
-          />
-        )}
+      {/* ─── MAIN WORKSPACE: SIDEBAR + CONTENT VIEWPORT ────────────────────────── */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Left Sidebar */}
+        <aside className="w-56 border-r border-slate-200 bg-white flex flex-col justify-between p-4 shrink-0 shadow-2xs">
+          {/* Nav Links */}
+          <div className="space-y-1">
+            <button
+              onClick={() => setTab('home')}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
+                tab === 'home'
+                  ? 'bg-emerald-50 text-emerald-800 font-bold shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+            >
+              <svg className={`w-4 h-4 ${tab === 'home' ? 'text-emerald-600' : 'text-slate-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+              </svg>
+              <span>Home</span>
+            </button>
 
-        {tab === 'firmware' && (
-          <FirmwarePage
-            firmware={firmware}
-            onRefresh={loadAll}
-          />
-        )}
-      </main>
+            <button
+              onClick={() => setTab('devices')}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all cursor-pointer ${
+                tab === 'devices'
+                  ? 'bg-emerald-50 text-emerald-800 font-bold shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+            >
+              <svg className={`w-4 h-4 ${tab === 'devices' ? 'text-emerald-600' : 'text-slate-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <rect x="2" y="3" width="20" height="14" rx="2" />
+                <line x1="8" y1="21" x2="16" y2="21" />
+                <line x1="12" y1="17" x2="12" y2="21" />
+              </svg>
+              <span>Devices</span>
+            </button>
+
+            <button
+              onClick={() => setTab('firmware')}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all cursor-pointer ${
+                tab === 'firmware'
+                  ? 'bg-emerald-50 text-emerald-800 font-bold shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+            >
+              <svg className={`w-4 h-4 ${tab === 'firmware' ? 'text-emerald-600' : 'text-slate-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+              <span>Firmware</span>
+            </button>
+
+            <button
+              onClick={() => openUpdateModalForDevice()}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all cursor-pointer"
+            >
+              <svg className="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="16 12 12 8 8 12" />
+                <line x1="12" y1="16" x2="12" y2="8" />
+              </svg>
+              <span>Deployments</span>
+            </button>
+
+            <button
+              onClick={() => setTab('monitoring')}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all cursor-pointer ${
+                tab === 'monitoring'
+                  ? 'bg-emerald-50 text-emerald-800 font-bold shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+            >
+              <svg className={`w-4 h-4 ${tab === 'monitoring' ? 'text-emerald-600' : 'text-slate-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              <span>Monitoring</span>
+            </button>
+
+            <button
+              onClick={() => setTab('settings')}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all cursor-pointer ${
+                tab === 'settings'
+                  ? 'bg-emerald-50 text-emerald-800 font-bold shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+            >
+              <svg className={`w-4 h-4 ${tab === 'settings' ? 'text-emerald-600' : 'text-slate-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <circle cx="12" cy="12" r="3" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" />
+              </svg>
+              <span>Settings</span>
+            </button>
+          </div>
+
+          {/* Bottom Sidebar Status Card */}
+          <div className="bg-slate-50/80 border border-slate-200/90 rounded-2xl p-3.5 space-y-1.5 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-xs font-bold text-slate-800">System Online</span>
+              </div>
+              <span className="text-[10px] font-mono font-semibold text-slate-400">v1.0.0</span>
+            </div>
+            <p className="text-[11px] text-slate-400 font-medium">Build • Deploy • Monitor</p>
+            <p className="text-[11px] font-bold text-emerald-700">Smarter IoT</p>
+          </div>
+        </aside>
+
+        {/* Right Main Content */}
+        <main className="flex-1 overflow-y-auto bg-slate-50/50">
+          {(tab === 'home' || tab === 'devices' || tab === 'monitoring') && (
+            <FleetGrid
+              devices={devices}
+              firmware={firmware}
+              logs={liveLogs}
+              selectedIds={selectedIds}
+              onToggleSelect={toggleSelect}
+              onToggleAll={toggleAll}
+              onOpenDevice={d => setPanelDevice(d)}
+              onOpenUpdateModal={openUpdateModalForDevice}
+              onRefresh={loadAll}
+            />
+          )}
+
+          {tab === 'firmware' && (
+            <FirmwarePage
+              firmware={firmware}
+              onRefresh={loadAll}
+            />
+          )}
+
+          {tab === 'settings' && (
+            <div className="p-8 max-w-3xl mx-auto space-y-6">
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
+                <h3 className="text-lg font-bold text-slate-900">Mission Control Settings</h3>
+                <p className="text-sm text-slate-500">Configure WebSocket gateway parameters, heartbeat timeouts, and telemetry retention.</p>
+                <div className="space-y-3 pt-2">
+                  <div className="flex justify-between items-center py-2 border-b border-slate-100">
+                    <div>
+                      <div className="font-semibold text-sm text-slate-800">WebSocket Transport Endpoint</div>
+                      <div className="text-xs text-slate-400">ws://localhost:8765/ws/dashboard</div>
+                    </div>
+                    <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-300 rounded-full text-xs font-bold">Active</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b border-slate-100">
+                    <div>
+                      <div className="font-semibold text-sm text-slate-800">Heartbeat Timeout Threshold</div>
+                      <div className="text-xs text-slate-400">Mark node offline after missing 3 consecutive heartbeats (15s)</div>
+                    </div>
+                    <span className="text-xs font-mono font-bold text-slate-700">15,000 ms</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </main>
+      </div>
 
       {/* Slide-in Device Telemetry Inspection Drawer */}
       {panelDevice && (
