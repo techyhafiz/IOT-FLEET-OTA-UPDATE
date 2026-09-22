@@ -294,7 +294,7 @@ export default function App() {
         </aside>
 
         {/* Right Main Content */}
-        <main className="flex-1 overflow-hidden bg-slate-50/50 p-3">
+        <main className="flex-1 overflow-y-auto bg-slate-50/50 p-4 lg:p-6">
           {(tab === 'home' || tab === 'devices') && (
             <FleetGrid
               devices={devices}

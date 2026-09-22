@@ -1,7 +1,6 @@
 import React, { useState, useRef } from 'react'
 import type { FirmwareVersion } from '@shared/types'
 import { api } from '../hooks/useWebSocket'
-import { AdaptiveViewport } from '../components/AdaptiveViewport'
 
 interface Props {
   firmware: FirmwareVersion[]
@@ -129,8 +128,7 @@ export function FirmwarePage({ firmware, onRefresh }: Props) {
   }
 
   return (
-    <AdaptiveViewport baseHeight={700} minWidth={1000} className="w-full h-full">
-      <div className="p-6 max-w-6xl mx-auto space-y-6">
+    <div className="max-w-6xl mx-auto space-y-6 w-full">
       {/* Top Header */}
       <div className="flex items-center justify-between bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
         <div>
@@ -327,7 +325,6 @@ export function FirmwarePage({ firmware, onRefresh }: Props) {
           </div>
         </div>
       )}
-      </div>
-    </AdaptiveViewport>
+    </div>
   )
 }

@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react'
 import type { Device, FirmwareVersion, LogEntry } from '@shared/types'
 import { Esp32Board } from '@shared/components/Esp32Board'
-import { AdaptiveViewport } from '../components/AdaptiveViewport'
 
 interface Props {
   devices: Device[]
@@ -136,7 +135,7 @@ export function FleetGrid({
   ]
 
   return (
-    <AdaptiveViewport baseHeight={760} minWidth={1080}>
+    <div className="space-y-4 max-w-7xl mx-auto w-full">
       {/* ─── ROW 1: 4 KPI STATS CARDS ─────────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {/* Card 1: Fleet Nodes */}
@@ -720,6 +719,6 @@ export function FleetGrid({
           </div>
         </div>
       </div>
-    </AdaptiveViewport>
+    </div>
   )
 }

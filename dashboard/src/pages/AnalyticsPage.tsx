@@ -1,6 +1,5 @@
 import React, { useState } from 'react'
 import type { Device, FirmwareVersion } from '@shared/types'
-import { AdaptiveViewport } from '../components/AdaptiveViewport'
 
 interface Props {
   devices: Device[]
@@ -67,7 +66,7 @@ export function AnalyticsPage({ devices, firmware }: Props) {
   ]
 
   return (
-    <AdaptiveViewport baseHeight={770} minWidth={1080}>
+    <div className="space-y-4 max-w-7xl mx-auto w-full">
       {/* ─── PAGE HEADER & GLOBAL TIMEFRAME FILTER ─────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
@@ -663,6 +662,6 @@ export function AnalyticsPage({ devices, firmware }: Props) {
           </div>
         </div>
       </div>
-    </AdaptiveViewport>
+    </div>
   )
 }
