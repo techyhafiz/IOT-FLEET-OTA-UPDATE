@@ -165,7 +165,8 @@ async def health():
 async def register_device(data: RegisterDevice):
     device = make_device(data)
     devices[data.id] = device
-    logs[data.id] = []
+    if data.id not in logs:
+        logs[data.id] = []
     await manager.broadcast("device_registered", data.id, device)
     return device
 

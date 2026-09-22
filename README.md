@@ -62,6 +62,8 @@ npm run dev --host
 **PC-B:** Open browser → `http://192.168.x.x:3000`
 **PC-A:** Open browser → `http://localhost:5173`
 
+> **Note on Ports:** If port 8000 is already occupied by another service on your machine, you can run uvicorn on any available port (e.g. `--port 8765`) and update `VITE_API_BASE=http://<PC-A-IP>:8765` in `dashboard/.env` and `simulator/.env`.
+
 ---
 
 ## Demo Script (7 Beats)

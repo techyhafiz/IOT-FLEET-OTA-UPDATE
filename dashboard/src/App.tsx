@@ -1,122 +1,230 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import React, { useState, useEffect, useCallback } from 'react'
+import type { Device, Group, FirmwareVersion, LogEntry, WSEvent } from '@shared/types'
+import { useWebSocket, api } from './hooks/useWebSocket'
+import { FleetGrid } from './pages/FleetGrid'
+import { FirmwarePage } from './pages/FirmwarePage'
+import { LogsPage } from './pages/LogsPage'
+import { ConfigPage } from './pages/ConfigPage'
+import { DevicePanel } from './components/DevicePanel'
+import { BatchOTAModal } from './components/BatchOTAModal'
+import './index.css'
 
-function App() {
-  const [count, setCount] = useState(0)
+type Tab = 'fleet' | 'firmware' | 'logs' | 'config'
+
+export default function App() {
+  const [tab, setTab] = useState<Tab>('fleet')
+  const [devices, setDevices] = useState<Device[]>([])
+  const [groups, setGroups] = useState<Group[]>([])
+  const [firmware, setFirmware] = useState<FirmwareVersion[]>([])
+  const [liveLogs, setLiveLogs] = useState<LogEntry[]>([])
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [panelDevice, setPanelDevice] = useState<Device | null>(null)
+  const [showBatch, setShowBatch] = useState(false)
+  const [groupFilter, setGroupFilter] = useState<string | null>(null)
+  const [now, setNow] = useState(new Date())
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(t)
+  }, [])
+
+  const loadAll = useCallback(async () => {
+    const [devs, grps, fws] = await Promise.all([
+      api.get('/api/devices'),
+      api.get('/api/groups'),
+      api.get('/api/firmware'),
+    ])
+    setDevices(devs)
+    setGroups(grps)
+    setFirmware(fws)
+  }, [])
+
+  useEffect(() => { loadAll() }, [loadAll])
+
+  const handleWsEvent = useCallback((event: WSEvent) => {
+    if (event.type === 'device_log') {
+      setLiveLogs(prev => [...prev.slice(-499), event.payload as LogEntry])
+    }
+    setDevices(prev => {
+      switch (event.type) {
+        case 'device_registered':
+          if (prev.find(d => d.id === event.device_id)) return prev
+          return [...prev, event.payload as Device]
+        case 'device_removed':
+          return prev.filter(d => d.id !== event.device_id)
+        case 'device_status':
+        case 'ota_progress':
+        case 'ota_complete':
+          return prev.map(d => d.id === event.device_id
+            ? { ...d, ...(event.payload as Partial<Device>) } : d)
+        default: return prev
+      }
+    })
+    // Update panel device if open
+    setPanelDevice(prev => {
+      if (!prev || prev.id !== event.device_id) return prev
+      if (['device_status','ota_progress','ota_complete'].includes(event.type))
+        return { ...prev, ...(event.payload as Partial<Device>) }
+      return prev
+    })
+  }, [])
+
+  const { connected } = useWebSocket(handleWsEvent)
+
+  const onlineCount  = devices.filter(d => d.online).length
+  const offlineCount = devices.filter(d => !d.online).length
+  const latestFw = firmware[0]?.version ?? '—'
+
+  const toggleSelect = (id: string) => setSelectedIds(prev => {
+    const s = new Set(prev)
+    s.has(id) ? s.delete(id) : s.add(id)
+    return s
+  })
+  const toggleAll = () => setSelectedIds(
+    selectedIds.size === devices.length ? new Set() : new Set(devices.map(d => d.id))
+  )
+
+  const tabClass = (t: Tab) => `px-4 py-2 text-sm font-mono rounded-lg transition-colors ${
+    tab === t ? 'bg-cyan-900/40 text-cyan-400 border border-cyan-700' : 'text-slate-400 hover:text-slate-200'
+  }`
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+    <div className="min-h-screen bg-[#0f172a] text-slate-200 flex flex-col">
+      {/* Top nav */}
+      <header className="border-b border-slate-700 bg-slate-900 px-6 py-3 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">⚡</span>
+            <div>
+              <h1 className="text-lg font-bold text-cyan-400 font-mono">IoT OTA Manager</h1>
+              <p className="text-xs text-slate-500 font-mono">PC-A — Mission Control</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 ml-4">
+            {(['fleet','firmware','logs','config'] as Tab[]).map(t => (
+              <button key={t} onClick={() => setTab(t)} className={tabClass(t)}>
+                {t.charAt(0).toUpperCase() + t.slice(1)}
+              </button>
+            ))}
+          </div>
         </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
 
-      <div className="ticks"></div>
+        <div className="flex items-center gap-4">
+          {/* Status chips */}
+          <div className="flex items-center gap-2 text-xs font-mono">
+            <span className="flex items-center gap-1 text-green-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"/>
+              {onlineCount} online
+            </span>
+            {offlineCount > 0 && (
+              <span className="flex items-center gap-1 text-red-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-400"/>
+                {offlineCount} offline
+              </span>
+            )}
+            <span className="text-slate-600">|</span>
+            <span className="text-amber-400 bg-amber-900/30 border border-amber-800 px-2 py-0.5 rounded">
+              {latestFw}
+            </span>
+          </div>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+          {/* WebSocket status */}
+          <div className={`flex items-center gap-1.5 text-xs font-mono px-2 py-1 rounded-full border ${
+            connected ? 'border-green-700 text-green-400 bg-green-900/20' : 'border-red-700 text-red-400 bg-red-900/20'
+          }`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}/>
+            {connected ? 'Live' : 'Offline'}
+          </div>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+          {/* Clock */}
+          <span className="text-xs font-mono text-slate-500">
+            {now.toLocaleTimeString()}
+          </span>
+
+          {/* Batch push button */}
+          {selectedIds.size >= 2 && (
+            <button onClick={() => setShowBatch(true)}
+              className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-mono text-sm rounded-lg font-bold transition-colors">
+              ⬆ Push Update ({selectedIds.size})
+            </button>
+          )}
+        </div>
+      </header>
+
+      <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar */}
+        {tab === 'fleet' && (
+          <aside className="w-52 border-r border-slate-700 bg-slate-900/50 p-4 shrink-0 overflow-y-auto">
+            <div className="mb-4">
+              <div className="text-xs font-mono text-slate-500 mb-2 uppercase tracking-wider">Groups</div>
+              <button
+                onClick={() => setGroupFilter(null)}
+                className={`w-full text-left px-2 py-1.5 rounded text-xs font-mono transition-colors mb-1 ${
+                  !groupFilter ? 'bg-cyan-900/30 text-cyan-400' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                All Devices ({devices.length})
+              </button>
+              {groups.map(g => (
+                <button key={g.name}
+                  onClick={() => setGroupFilter(groupFilter === g.name ? null : g.name)}
+                  className={`w-full text-left px-2 py-1.5 rounded text-xs font-mono transition-colors mb-1 ${
+                    groupFilter === g.name ? 'bg-cyan-900/30 text-cyan-400' : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {g.name} ({g.device_count})
+                </button>
+              ))}
+            </div>
+            <div className="mb-4">
+              <div className="text-xs font-mono text-slate-500 mb-2 uppercase tracking-wider">Firmware</div>
+              {firmware.map(fw => (
+                <div key={fw.version} className="flex justify-between px-2 py-1 text-xs font-mono">
+                  <span className={fw.version === latestFw ? 'text-amber-400' : 'text-slate-400'}>{fw.version}</span>
+                  <span className="text-slate-600">{fw.device_count}</span>
+                </div>
+              ))}
+            </div>
+          </aside>
+        )}
+
+        {/* Main content */}
+        <main className="flex-1 overflow-y-auto">
+          {tab === 'fleet' && (
+            <FleetGrid
+              devices={devices}
+              groupFilter={groupFilter}
+              selectedIds={selectedIds}
+              onToggleSelect={toggleSelect}
+              onToggleAll={toggleAll}
+              onOpenDevice={(d) => setPanelDevice(d)}
+            />
+          )}
+          {tab === 'firmware' && <FirmwarePage firmware={firmware} onRefresh={loadAll}/>}
+          {tab === 'logs' && <LogsPage liveLogs={liveLogs} devices={devices}/>}
+          {tab === 'config' && <ConfigPage groups={groups} devices={devices}/>}
+        </main>
+
+        {/* Device detail slide-in panel */}
+        {panelDevice && (
+          <DevicePanel
+            device={panelDevice}
+            onClose={() => setPanelDevice(null)}
+            onOTA={async (id, version) => {
+              await api.post('/api/ota/push', { device_ids: [id], version })
+            }}
+          />
+        )}
+      </div>
+
+      {showBatch && (
+        <BatchOTAModal
+          deviceIds={Array.from(selectedIds)}
+          devices={devices}
+          firmware={firmware}
+          onClose={() => { setShowBatch(false); setSelectedIds(new Set()) }}
+        />
+      )}
+    </div>
   )
 }
-
-export default App

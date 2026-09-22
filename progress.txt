@@ -29,4 +29,44 @@
   - Gotchas: Tailwind v4 uses `@import "tailwindcss"` not `@tailwind base/components/utilities`
   - Gotchas: PowerShell doesn't support `&&` — use separate commands
   - Useful: All Python deps (fastapi, uvicorn, websockets) were already installed globally
+## 2026-09-22 19:35 - US-002 to US-004: Backend Registry, WebSocket & Firmware
+- Implemented: Device registry with in-memory dict, full REST endpoints (/api/devices/*)
+- Implemented: WebSocket event bus (/ws/events) with automatic broadcast for status, log, OTA, and registration events
+- Implemented: Firmware endpoints (/api/firmware, /api/ota/push, /api/ota/rollback, /api/ota/reset, /ota/update/{id})
+- Implemented: Group management (/api/groups) and config push (/api/config/push)
+- Seeded: 3 initial demo devices (ESP-A1F3, ESP-B2C4, ESP-C9D1) and 3 default groups (floor-1, floor-2, rooftop)
+- Files changed: backend/main.py
+
+## 2026-09-22 19:40 - US-005: Shared SVG Components
+- Created: Esp32Board.tsx with authentic PCB traces, gold pins, antenna, chip labels, offline overlay, and updating flicker
+- Created: LedIndicator.tsx with radial gradient glow, lens reflection, and CSS pulse animation
+- Created: LcdScreen.tsx with 16x2 character grid, amber text, dark green bezel, and backlight glow
+- Created: shared/components/index.ts barrel export
+- Files changed: shared/components/*
+
+## 2026-09-22 20:00 - US-006 to US-011: PC-B Simulator Application
+- Implemented: useWebSocket hook with auto-reconnect and typed event dispatching
+- Implemented: useDeviceSimulator hook with 2s heartbeat, 5s log rotation, and real-time OTA download simulation
+- Implemented: Persistent simulation workers in App.tsx so devices remain active during navigation
+- Implemented: DeviceGrid.tsx with graphical device cards, delete modal, and Add Device card
+- Implemented: AddDeviceModal.tsx with interactive template selector (💡 2-LED Controller vs 🖥 16x2 LCD Display)
+- Implemented: DeviceDetail.tsx with live interactive board, GPIO pin state bars, LCD view, preset buttons, live log feed
+- Implemented: CodeViewerModal.tsx with syntax-highlighted C++ Arduino sketches dynamic to device ID and API endpoint
+- Implemented: ResetFirmwareModal.tsx for rolling back firmware versions
+- Files changed: simulator/src/**/*
+
+## 2026-09-22 20:30 - US-012 to US-015: PC-A Mission Control Dashboard
+- Implemented: FleetGrid.tsx with multi-select checkboxes, group filter tabs, live stats (online/offline counts, active firmware)
+- Implemented: DevicePanel.tsx slide-in panel showing deep device inspection, firmware history, and live telemetry stream
+- Implemented: BatchOTAModal.tsx with concurrent multi-device progress animations, individual and overall progress bars
+- Implemented: FirmwarePage.tsx with version list, binary size, active device counts, and upload modal
+- Implemented: LogsPage.tsx with real-time log stream, device filter, log level filter (INFO/WARN/ERROR), and auto-scroll
+- Implemented: ConfigPage.tsx with JSON editor, syntax validation, target device selector, and group creator
+- Files changed: dashboard/src/**/*
+
+## 2026-09-22 20:55 - US-016: Polish, Animations, Cross-Platform Builds & Verification
+- Fixed: Monorepo TypeScript module resolution via shared node_modules junction
+- Added: Smooth CSS slide-in panel animation and verified LED pulsing / board flickering keyframes
+- Added: Production builds for both frontends (`npm run build` passes with zero errors)
+- Verified: All 16 user stories in prd.json passing
 ---

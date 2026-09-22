@@ -50,7 +50,8 @@ export type WSEventType =
   | 'ota_started'
   | 'ota_progress'
   | 'ota_complete'
-  | 'config_pushed';
+  | 'config_pushed'
+  | 'ping';
 
 export interface WSEvent {
   type: WSEventType;

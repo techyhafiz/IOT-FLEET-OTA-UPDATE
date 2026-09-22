@@ -41,7 +41,7 @@
         "Backend runs without errors after: uvicorn main:app --reload"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -60,7 +60,7 @@
         "Backend runs without errors"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -77,7 +77,7 @@
         "Backend runs without errors"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -96,7 +96,7 @@
         "Verify in browser: LED glows/pulses when on=true, dims when on=false; LCD shows two rows of text correctly"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -115,7 +115,7 @@
         "No console errors when running"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -136,7 +136,7 @@
         "Verify in browser: grid renders, cards show correct template icons, delete works, grid updates on WebSocket events"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -155,7 +155,7 @@
         "Verify in browser: modal opens, template selection works visually, new device appears on both UIs after confirm"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -177,7 +177,7 @@
         "Verify in browser: LED glows animate correctly, preset application changes LED state visually in real time"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -200,7 +200,7 @@
         "Verify in browser: LCD text updates when preset applied, backlight glow renders, mini previews in preset cards show correct text"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -222,7 +222,7 @@
         "Verify in browser: code is syntax-highlighted, reset modal version selection works, confirm triggers OTA animation on card"
       ],
       "priority": 11,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -244,7 +244,7 @@
         "Verify in browser: grid renders with correct cards, adding device on PC-B tab causes card to appear on PC-A tab within 1 second, group filter works"
       ],
       "priority": 12,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -265,7 +265,7 @@
         "Verify in browser: panel opens/closes with animation, LED/LCD state matches PC-B in real time"
       ],
       "priority": 13,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -286,7 +286,7 @@
         "Verify in browser: 3+ progress bars animate simultaneously during batch OTA, version updates after completion"
       ],
       "priority": 14,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -305,7 +305,7 @@
         "Verify in browser: firmware list shows versions with counts, logs stream in real time with colors, config push triggers log entries"
       ],
       "priority": 15,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -324,8 +324,9 @@
         "Verify in browser: all 3 demo devices appear on both PCs on first load, all animations render correctly"
       ],
       "priority": 16,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Backend seeds 3 demo devices on startup. Simulation workers run persistently in simulator App. Root README.md contains full 7-beat demo script and LAN IP setup. All CSS animations (LED pulse, board flicker, slide-in panel) configured."
     }
   ]
 }
+
