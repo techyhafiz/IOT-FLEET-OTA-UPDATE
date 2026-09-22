@@ -16,3 +16,17 @@
 
 ---
 
+## 2026-09-22 19:30 - US-001: Project Scaffold & Monorepo Setup
+- Created: backend/main.py (FastAPI stub), backend/requirements.txt, backend/firmware/ (3 placeholder .bin files)
+- Created: dashboard/ and simulator/ via `npm create vite@latest` (react-ts template)
+- Installed: tailwindcss @tailwindcss/vite react-syntax-highlighter in both frontends
+- Created: shared/types.ts with Device, LogEntry, FirmwareVersion, Group, OTAStatus, WSEvent interfaces
+- Configured: vite.config.ts (ports 5173 / 3000, @shared alias), tsconfig.app.json (@shared paths), index.css (Tailwind v4 + custom animations)
+- Created: .env / .env.example for both frontends, README.md, AGENTS.md
+- Files changed: 20+ files across all 4 directories
+- **Learnings for future iterations:**
+  - Patterns: Use `@shared/types` import alias in both frontends — works via vite resolve.alias + tsconfig paths
+  - Gotchas: Tailwind v4 uses `@import "tailwindcss"` not `@tailwind base/components/utilities`
+  - Gotchas: PowerShell doesn't support `&&` — use separate commands
+  - Useful: All Python deps (fastapi, uvicorn, websockets) were already installed globally
+---

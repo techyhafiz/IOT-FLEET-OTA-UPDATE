@@ -1,0 +1,3 @@
+IoT OTA Dashboard — Firmware v1.2.0
+Changelog: LCD preset support, config push via JSON, improved reconnect logic.
+This is a placeholder binary. Real firmware would be compiled ESP32 .bin file.

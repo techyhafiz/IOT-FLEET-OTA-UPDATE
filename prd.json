@@ -20,8 +20,8 @@
         "Backend starts without errors"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Scaffold complete. Both Vite apps start. Typecheck passes. Backend imports verified."
     },
     {
       "id": "US-002",
