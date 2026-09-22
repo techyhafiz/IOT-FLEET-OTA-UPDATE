@@ -121,34 +121,37 @@ export default function App() {
                   PC-A
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 font-mono">ESP32 Fleet Telemetry & OTA Deployment</p>
+              <p className="text-[11px] text-slate-600 font-mono font-medium">ESP32 Fleet Telemetry & OTA Deployment</p>
             </div>
           </div>
 
-          {/* Only 2 Tabs: Home and Firmware */}
-          <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-2xl border border-slate-200">
+          {/* Only 2 Tabs: Home and Firmware with crisp SVG icons */}
+          <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-2xl border border-slate-200">
             <button onClick={() => setTab('home')} className={tabClass('home')}>
-              🏠 Home
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+              </svg>
+              Home
             </button>
             <button onClick={() => setTab('firmware')} className={tabClass('firmware')}>
-              📦 Firmware
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+              Firmware
             </button>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Status chips */}
+          {/* Status chips: De-duplicated (Target FW is prominently displayed in KPI card below) */}
           <div className="flex items-center gap-2 text-xs font-mono">
             <span className="flex items-center gap-1.5 text-emerald-800 bg-emerald-50 border border-emerald-300 px-3 py-1 rounded-full font-bold shadow-2xs">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               {onlineCount} Online
             </span>
-            <span className="text-amber-900 bg-amber-50 border border-amber-300 px-2.5 py-1 rounded-lg font-bold">
-              Target: {latestFw}
-            </span>
           </div>
 
-          {/* WebSocket status */}
+          {/* WebSocket transport status */}
           <div
             className={`flex items-center gap-1.5 text-xs font-mono px-3 py-1 rounded-full border font-semibold ${
               connected
@@ -164,9 +167,14 @@ export default function App() {
             {connected ? 'WS Live' : 'WS Offline'}
           </div>
 
-          {/* Clock */}
-          <span className="text-xs font-mono text-slate-500 font-semibold bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
+          {/* Clock: Anchored with icon and timezone */}
+          <span className="flex items-center gap-1.5 text-xs font-mono text-slate-700 font-semibold bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs">
+            <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
             {now.toLocaleTimeString()}
+            <span className="text-[10px] text-slate-400 font-bold">UTC</span>
           </span>
         </div>
       </header>
