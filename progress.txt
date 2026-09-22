@@ -70,3 +70,21 @@
 - Added: Production builds for both frontends (`npm run build` passes with zero errors)
 - Verified: All 16 user stories in prd.json passing
 ---
+
+## 2026-09-22 21:15 - Strict Light Theme Transformation & Authentic Wokwi Hardware Graphics
+- Replaced dark theme styling across both PC-A and PC-B with Strict Light Theme (`bg-slate-50`, `#ffffff` cards, `border-slate-200`, `text-slate-900`, high-contrast typography).
+- Replaced hand-drawn SVG approximations with authentic millimeter-accurate `@wokwi/elements` hardware components:
+  - `Esp32Board.tsx`: Wokwi ESP32 DevKit V1 custom element (`<wokwi-esp32-devkit-v1>`) with realistic PCB, RF shield, and EN/BOOT push buttons.
+  - `LedIndicator.tsx`: Wokwi 5mm diffused LED custom element (`<wokwi-led>`) with radiant amber glow physics and HIGH/LOW state reactive rendering.
+  - `LcdScreen.tsx`: Wokwi 1602 character LCD custom element (`<wokwi-lcd1602>`) with authentic green backlight, character grid, and contrast bezel.
+- Created Playwright screenshot suite (`take_screenshots.py`) and verified all light-theme screens visually.
+
+## 2026-09-22 21:35 - Enterprise PC-A Features & Diagnostics
+- Implemented: Dynamic Group Operations with 1-click "Update Group" batch trigger and device configuration modal (`DeviceSettingsModal.tsx`) for alias, group, and heartbeat tuning.
+- Implemented: Multi-stage technical OTA deployment pipeline (`BatchOTAModal.tsx`) featuring 4 stages: Handshake -> Binary Streaming in KB/s -> Flash Memory Writing -> Reboot Verification.
+- Implemented: Canary A/B deployment telemetry & comparison modal (`CanaryComparisonModal.tsx`) with real-time health ratios and 1-click "Promote to 100%" or "Abort Canary".
+- Implemented: Self-healing auto-rollback engine intercepting simulated watchdog crashes on `v2.2.0-faulty` and safely reverting nodes to `v1.2.0`.
+- Implemented: Side-by-side C++ firmware diff inspector (`FirmwareDiffModal.tsx` & `/api/firmware/{version}/code`) with line numbers and diff syntax highlighting.
+- Implemented: Fleet Analytics & Health Dashboard (`AnalyticsPage.tsx`) with health indices, firmware distribution stacked charts, group readiness matrix, and CSV audit export.
+- Verified: Both `dashboard` and `simulator` build cleanly with code 0 (`npm run build`). All live endpoints and WebSockets healthy.
+---
