@@ -1,0 +1,331 @@
+{
+  "project": "IoT OTA Fleet Management Dashboard",
+  "branchName": "ralph/iot-ota-dashboard",
+  "description": "A two-PC local-network IoT OTA update and fleet management demo. PC-A runs FastAPI + React dashboard. PC-B runs React simulator with graphic ESP32 device cards (SVG LEDs, LCD, PCB board), template picker, presets, and C++ code viewer. Devices sync in real time via WebSocket.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Project Scaffold & Monorepo Setup",
+      "description": "As a developer, I want a clean monorepo project structure so that PC-A (dashboard) and PC-B (simulator) can be run independently while sharing types.",
+      "acceptanceCriteria": [
+        "Root folder C:\\Users\\mujaw\\Downloads\\IOT with subdirs: backend/, dashboard/, simulator/, shared/",
+        "backend/ is a FastAPI app that starts with: uvicorn main:app --reload --port 8000",
+        "dashboard/ is a React + Vite + TailwindCSS app configured on port 5173",
+        "simulator/ is a React + Vite + TailwindCSS app configured on port 3000",
+        "shared/types.ts exports TypeScript interfaces: Device, FirmwareVersion, OTAStatus, LogEntry, Group",
+        "Both frontends import shared types via relative path alias",
+        "Root README.md documents how to run all three services",
+        "backend/ has requirements.txt with: fastapi, uvicorn, python-multipart",
+        "Both frontend apps run npm run dev without errors",
+        "Backend starts without errors"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Backend — Device Registry & WebSocket Event Bus",
+      "description": "As the system, I want a FastAPI backend that maintains in-memory device state and broadcasts real-time events via WebSocket so both UIs stay in sync instantly.",
+      "acceptanceCriteria": [
+        "POST /api/devices/register accepts { id, mac, firmware, group, template } and stores device in memory",
+        "DELETE /api/devices/{id} removes device and broadcasts device_removed event",
+        "GET /api/devices returns all devices with full current state",
+        "POST /api/devices/{id}/status updates device gpio, uptime, ota_progress fields",
+        "POST /api/devices/{id}/logs appends a log entry { level, msg, timestamp }",
+        "GET /api/devices/{id}/logs returns last 100 log lines",
+        "WebSocket endpoint /ws/events broadcasts JSON events to all connected clients",
+        "Event types broadcast: device_registered, device_removed, device_status, device_log, ota_started, ota_progress, ota_complete",
+        "CORS middleware allows origins: http://localhost:5173, http://localhost:3000, and all LAN IPs (allow_origins=['*'] for demo)",
+        "All endpoints return proper HTTP status codes and JSON",
+        "Backend runs without errors after: uvicorn main:app --reload"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Backend — Firmware Store & OTA Endpoints",
+      "description": "As the system, I want the backend to manage firmware versions and serve OTA update endpoints so simulator devices can poll, download, and confirm updates.",
+      "acceptanceCriteria": [
+        "firmware/ directory exists with placeholder files: v1.0.0.bin, v1.1.0.bin, v1.2.0.bin (can be empty/text files)",
+        "GET /api/firmware returns list of versions with: version, size, changelog, date fields",
+        "POST /api/ota/push accepts { device_ids: [], version } and marks those devices as ota_pending, broadcasts ota_started event",
+        "POST /api/ota/rollback accepts { device_id, version } and initiates rollback flow",
+        "GET /ota/update/{device_id} returns 200 + file content if device has pending update, 304 if up to date",
+        "POST /api/ota/reset accepts { device_id, version } to reset firmware to chosen version",
+        "POST /api/devices/{id}/status with { ota_progress: 100, state: 'complete' } clears ota_pending and broadcasts ota_complete",
+        "All OTA state changes broadcast appropriate WebSocket events",
+        "Backend runs without errors"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Backend — Groups & Config Push Endpoints",
+      "description": "As a user, I want group management and config push endpoints so devices can be organized and configured remotely from PC-A.",
+      "acceptanceCriteria": [
+        "GET /api/groups returns list of groups with { name, device_count }",
+        "POST /api/groups accepts { name } and creates a new group",
+        "PUT /api/devices/{id}/group accepts { group } and updates device group",
+        "POST /api/config/push accepts { device_ids: [], config: {} } and broadcasts config_pushed WebSocket event to targeted devices",
+        "Config payload stored on device state as device.config field",
+        "Default groups pre-seeded on startup: floor-1, floor-2, rooftop",
+        "Backend runs without errors"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Shared SVG Components — ESP32 Board, LED, LCD",
+      "description": "As a developer, I want shared SVG React components for the ESP32 PCB board, LED indicator, and 16x2 LCD so both PC-A and PC-B render identical visuals.",
+      "acceptanceCriteria": [
+        "shared/components/Esp32Board.tsx renders an SVG ESP32-WROOM board: blue PCB, gold pin pads on both sides, chip rectangle labeled ESP32, antenna line",
+        "Esp32Board accepts props: pins: { [pinName]: 'HIGH' | 'LOW' }, size?: 'sm' | 'md' | 'lg'",
+        "shared/components/LedIndicator.tsx renders SVG circle: ON = amber/yellow with radial gradient + CSS pulse glow keyframe animation, OFF = dark grey #374151 no glow",
+        "LedIndicator accepts props: on: boolean, label: string",
+        "shared/components/LcdScreen.tsx renders 16x2 LCD: dark green background #0a2e0a, amber monospace text #fbbf24, border glow, exactly 16 char cells x 2 rows",
+        "LcdScreen accepts props: row1: string (max 16 chars), row2: string (max 16 chars), backlight?: boolean",
+        "Components importable from both dashboard/ and simulator/ via path alias",
+        "All three components render without errors in browser",
+        "Verify in browser: LED glows/pulses when on=true, dims when on=false; LCD shows two rows of text correctly"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "PC-B Simulator — WebSocket Hook & Device State Engine",
+      "description": "As the simulator, I want a React hook that connects to the backend WebSocket and a simulation engine that runs per-device heartbeat loops so the dashboard stays alive without manual interaction.",
+      "acceptanceCriteria": [
+        "useWebSocket.ts hook connects to ws://[API_BASE]/ws/events and exposes: lastEvent, connectionStatus",
+        "useDeviceSimulator.ts hook accepts a device object and runs setInterval every 2000ms",
+        "Every 2s: POST /api/devices/{id}/status with current uptime (incrementing), gpio state",
+        "Every 5s: POST /api/devices/{id}/logs with a realistic log line (rotates through: OTA check no update, LED1 ON D0 HIGH, heap free 218KB, WiFi RSSI -47, etc.)",
+        "For LED template: gpio reflects last applied preset (D0/D1 HIGH or LOW)",
+        "For LCD template: logs reflect last applied LCD text preset",
+        "Simulation loop starts on device registration, cleans up (clearInterval) on device deletion",
+        "VITE_API_BASE env var used for all HTTP and WebSocket URLs",
+        "No console errors when running"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "PC-B Simulator — Home Grid View (Device Cards)",
+      "description": "As a demo presenter, I want PC-B to show a graphic grid of ESP32 device cards so anyone can see all simulated devices at a glance with no pin data until clicked.",
+      "acceptanceCriteria": [
+        "PC-B app renders at http://localhost:3000 with dark slate background #0f172a",
+        "Top header: app title 'ESP32 Device Simulator', dashboard connection status badge, device count",
+        "Device grid: 3 columns on wide screen, each card contains: Esp32Board SVG (sm size), device ID, template icon (💡 or 🖥), group badge, firmware version badge, online/offline status badge, uptime",
+        "NO pin states, no sensor readings shown on home card",
+        "Online card: normal color; Offline card: PCB SVG dims to greyscale, 'POWERED OFF' overlay text",
+        "During OTA: card shows animated flicker on PCB + progress bar (0-100%) + 'FLASHING...' label",
+        "Each card has [✕] delete button — calls DELETE /api/devices/{id} on confirm",
+        "Each card has [👁 Open Device] button — navigates to device detail route",
+        "Last slot in grid is always the [+ Add Device] card",
+        "Devices received via WebSocket device_registered/device_removed events update grid in real time",
+        "Verify in browser: grid renders, cards show correct template icons, delete works, grid updates on WebSocket events"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "PC-B Simulator — Add Device Modal",
+      "description": "As a user, I want an Add Device modal with a template picker so I can spawn a new simulated ESP32 that auto-registers on PC-A.",
+      "acceptanceCriteria": [
+        "Clicking [+ Add Device] card opens a modal overlay",
+        "Modal has: auto-generated Device ID field (editable, format ESP-XXXX), Group dropdown (from GET /api/groups), Firmware dropdown (v1.0.0, v1.1.0, v1.2.0)",
+        "Template picker shows two visual option cards: '💡 2-LED Controller' (D0=LED1, D1=LED2, presets available) and '🖥 16×2 LCD Display' (I2C LCD simulation, text presets available)",
+        "One template must be selected before confirming (default: 2-LED Controller)",
+        "Confirm button: POST /api/devices/register with all fields including template",
+        "On success: modal closes, new device card appears in grid immediately",
+        "New device also appears on PC-A dashboard fleet grid within 1 second (via WebSocket)",
+        "Cancel button closes modal without any side effects",
+        "Verify in browser: modal opens, template selection works visually, new device appears on both UIs after confirm"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "PC-B Simulator — LED Device Detail View",
+      "description": "As a demo presenter, I want the LED device detail page to show a graphic ESP32 board with glowing SVG LEDs and preset buttons so the professor can instantly see pin state changes.",
+      "acceptanceCriteria": [
+        "Route /device/:id renders detail view for LED template devices",
+        "Back button navigates to home grid",
+        "Left panel: Esp32Board SVG (md/lg size) with D0 and D1 pins visually wired to LED symbols",
+        "Right panel: two LedIndicator SVG components side by side, labeled LED 1 (D0) and LED 2 (D1)",
+        "LED state reflects current gpio from backend device state",
+        "Presets section shows 3 cards: Preset 1 (D0 ON, D1 OFF), Preset 2 (D0 OFF, D1 ON), Preset 3 (both ON)",
+        "Each preset card shows mini LED previews (small LedIndicator components) and [▶ Apply Now] button",
+        "Applying a preset: POST /api/devices/{id}/status with new gpio state, LED SVGs update immediately",
+        "OTA section shows current version, latest available, [⬆ Update] button, [↺ Reset Firmware] button",
+        "Live logs panel: terminal dark bg, monospace font, auto-scrolling, last 100 lines from GET /api/devices/{id}/logs + streaming via WebSocket",
+        "[👁 View C++ Code] button opens code viewer modal",
+        "Verify in browser: LED glows animate correctly, preset application changes LED state visually in real time"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "PC-B Simulator — LCD Device Detail View",
+      "description": "As a demo presenter, I want the LCD device detail page to show a graphic ESP32 board with a realistic 16x2 LCD SVG and text presets so the LCD simulation is visually obvious.",
+      "acceptanceCriteria": [
+        "Route /device/:id renders detail view for LCD template devices",
+        "Left panel: Esp32Board SVG with SDA/SCL pins labeled and wired to a small LCD symbol",
+        "Right panel: LcdScreen SVG component showing current row1 and row2 text",
+        "LcdScreen shows green/amber backlit look with character cell grid visible",
+        "Presets section shows 3 cards each with a mini LcdScreen preview showing the preset text:",
+        "  Preset 1: row1='Hello World!' row2='Sys: RUNNING'",
+        "  Preset 2: row1='OTA System' row2='v1.2.0 Ready'",
+        "  Preset 3: row1='Device:' row2=device ID",
+        "Applying a preset: POST /api/devices/{id}/status with new lcd_row1/lcd_row2 fields, LcdScreen updates immediately",
+        "OTA section: current version, [⬆ Update] if newer available, [↺ Reset Firmware]",
+        "Live logs panel identical to LED detail view",
+        "[👁 View C++ Code] button opens LCD-specific code viewer",
+        "Verify in browser: LCD text updates when preset applied, backlight glow renders, mini previews in preset cards show correct text"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "PC-B Simulator — C++ Code Viewer Modal & OTA Reset Modal",
+      "description": "As a demo presenter, I want a syntax-highlighted C++ code viewer and a firmware reset modal so I can show real Arduino code and demonstrate rollback.",
+      "acceptanceCriteria": [
+        "Code viewer modal opens on [👁 View C++ Code] click",
+        "LED template sketch: includes WiFi.h, HTTPUpdate.h, defines LED_PIN D0/D1, setup() with WiFi.begin, loop() with digitalWrite HIGH/LOW, checkOTA() with httpUpdate.update()",
+        "LCD template sketch: includes WiFi.h, HTTPUpdate.h, LiquidCrystal_I2C.h, lcd.print() calls in loop, checkOTA()",
+        "Code references actual device ID in OTA URL string",
+        "Code is syntax-highlighted (use react-syntax-highlighter with atomDark theme)",
+        "Footer note: 'This is the exact code this device would run on real ESP32 hardware'",
+        "Modal is read-only, scrollable, has [✕] close button",
+        "Reset/Rollback modal opens on [↺ Reset Firmware] click",
+        "Reset modal shows: current version, radio list of all firmware versions, warning text 'Device will reboot after reset'",
+        "[↺ Confirm Reset] calls POST /api/ota/rollback, closes modal, triggers OTA flow on device card",
+        "Both modals accessible without errors",
+        "Verify in browser: code is syntax-highlighted, reset modal version selection works, confirm triggers OTA animation on card"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "PC-A Dashboard — App Shell, Fleet Grid & WebSocket Sync",
+      "description": "As a demo presenter, I want the PC-A dashboard to show a dark IoT-themed fleet grid of all devices that syncs in real time with PC-B so both screens reflect the same state.",
+      "acceptanceCriteria": [
+        "PC-A dashboard runs at http://localhost:5173 with dark slate background #0f172a",
+        "Top nav: app name 'IoT OTA Manager', firmware badge showing latest version, online/offline device counts, current time",
+        "Top nav right: [⬆ Push Update] button (disabled when no devices selected), [⚙] settings",
+        "Tabs: Fleet, Firmware, Logs, Config",
+        "Left sidebar: group list (from GET /api/groups) with device counts, clickable to filter grid; firmware version list; search bar",
+        "Fleet grid: 3 columns, device cards with Esp32Board SVG, device ID, template icon, group badge, firmware version, uptime, online/offline badge",
+        "No pin states shown on home cards",
+        "Checkbox on each card for batch selection; [Select All] toggle",
+        "WebSocket connection to /ws/events: device_registered adds card, device_removed removes card, device_status updates uptime/badges",
+        "Clicking a card opens device detail slide-in panel (right side)",
+        "Group filter in sidebar filters visible cards",
+        "Verify in browser: grid renders with correct cards, adding device on PC-B tab causes card to appear on PC-A tab within 1 second, group filter works"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "PC-A Dashboard — Device Detail Slide-In Panel",
+      "description": "As a demo presenter, I want a slide-in device detail panel on PC-A so I can inspect any device's pin state, logs, and firmware without leaving the fleet view.",
+      "acceptanceCriteria": [
+        "Clicking a fleet card opens a panel that slides in from the right, fleet grid shifts left",
+        "Panel header: device ID, status badge, group, MAC address, close button",
+        "Esp32Board SVG in panel with current pin highlights",
+        "For LED devices: two LedIndicator SVGs reflecting current gpio state",
+        "For LCD devices: LcdScreen SVG with current row1/row2 text",
+        "Firmware section: current version, version history list with [Rollback] button per version",
+        "[⬆ Update] button triggers POST /api/ota/push for this device",
+        "Live log stream: terminal style, auto-scroll, WebSocket-fed",
+        "Close button (✕) collapses panel with slide-out animation",
+        "Pin state and LCD text update in real time as PC-B sends status updates",
+        "Verify in browser: panel opens/closes with animation, LED/LCD state matches PC-B in real time"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "PC-A Dashboard — Individual & Batch OTA Push",
+      "description": "As a demo presenter, I want to push firmware updates to one or many devices and watch animated progress bars so the OTA demo is visually compelling.",
+      "acceptanceCriteria": [
+        "Individual OTA: [⬆ Update to vX.X.X] in device detail panel calls POST /api/ota/push",
+        "Fleet card immediately shows OTA overlay: 'FLASHING v1.1.0 → v1.2.0' with progress bar",
+        "Progress bar fills based on ota_progress events from WebSocket (0-100%)",
+        "After 100%: card shows ✅ new version, uptime resets, OTA overlay disappears",
+        "Batch OTA: select 2+ devices via checkboxes, click [⬆ Push Update] in top nav",
+        "Batch modal shows: firmware version dropdown, list of selected devices each with individual progress bar + status icon",
+        "Overall combined progress bar at bottom of modal",
+        "Each device progresses independently — bars fill at slightly different rates",
+        "Completed devices show ✅; any errors show ❌",
+        "Both individual and batch OTA verified to work end-to-end with simulator",
+        "Verify in browser: 3+ progress bars animate simultaneously during batch OTA, version updates after completion"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "PC-A Dashboard — Firmware Page, Logs Page & Config Page",
+      "description": "As a user, I want Firmware, Logs, and Config tab pages on PC-A so I can manage firmware versions, view live telemetry, and push configuration.",
+      "acceptanceCriteria": [
+        "Firmware tab: lists all firmware versions from GET /api/firmware with version, size, changelog, date, device count on that version",
+        "Firmware tab: [+ Upload Firmware] button opens modal to enter version + changelog (creates placeholder, no real file upload needed)",
+        "Logs tab: live log stream showing all devices, format: [timestamp] [DEVICE_ID] [LEVEL] message",
+        "Logs tab: color coding: INFO=white, WARN=amber #f59e0b, ERROR=red #ef4444",
+        "Logs tab: filter dropdown by device ID, filter by log level, [Clear] button, auto-scroll toggle",
+        "Config tab: device/group target selector, JSON textarea editor, [Push Config] button",
+        "Config push calls POST /api/config/push, targeted devices log '[INFO] Config received: {...}'",
+        "All three tabs navigable from top nav without page reload",
+        "Verify in browser: firmware list shows versions with counts, logs stream in real time with colors, config push triggers log entries"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "Polish, Demo Data & README",
+      "description": "As a demo presenter, I want the app pre-seeded with demo devices and a clear README so the demo can start instantly without manual setup.",
+      "acceptanceCriteria": [
+        "Backend seeds 3 demo devices on startup: ESP-A1F3 (LED, floor-1, v1.1.0), ESP-B2C4 (LCD, floor-1, v1.2.0), ESP-C9D1 (LED, floor-2, v1.0.0)",
+        "Demo devices start their simulation loops automatically",
+        "Root README.md has: Prerequisites, Installation (npm install in each dir), How to run (3 commands), How to set PC-B's VITE_API_BASE to PC-A's LAN IP, Demo script (7 beats)",
+        ".env.example files in dashboard/ and simulator/ with VITE_API_BASE=http://localhost:8000",
+        "All CSS animations working: LED pulse glow, OTA progress bar fill, board flicker during OTA, slide-in panel",
+        "Dark theme consistent across all pages: #0f172a bg, cyan #06b6d4, green #22c55e, amber #f59e0b, red #ef4444",
+        "No console errors in browser on any page",
+        "App runs stably for 15 minutes without crashes",
+        "Verify in browser: all 3 demo devices appear on both PCs on first load, all animations render correctly"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

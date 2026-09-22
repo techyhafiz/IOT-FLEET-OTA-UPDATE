@@ -1,0 +1,18 @@
+# Progress Log — IoT OTA Fleet Management Dashboard
+# Branch: ralph/iot-ota-dashboard
+# Started: 2026-09-22
+
+## Codebase Patterns
+<!-- Add reusable patterns here as they are discovered during implementation -->
+
+- **API Base URL:** Always read from `import.meta.env.VITE_API_BASE` — never hardcode
+- **WebSocket URL:** Derive from VITE_API_BASE by replacing `http` with `ws`
+- **Shared components:** Live in `shared/components/`, imported via `../../shared/components/ComponentName`
+- **Shared types:** Live in `shared/types.ts`, imported via `../../shared/types`
+- **Dark theme tokens:** bg=#0f172a, cyan=#06b6d4, green=#22c55e, amber=#f59e0b, red=#ef4444, slate-800=#1e293b, slate-700=#334155
+- **CORS:** FastAPI CORSMiddleware with allow_origins=["*"] for demo simplicity
+- **In-memory state:** Backend uses a plain Python dict `devices: dict[str, Device]` — no DB
+- **OTA simulation:** Simulator sends ota_progress 0→100 in 10% increments via setInterval, then posts state=complete
+
+---
+
