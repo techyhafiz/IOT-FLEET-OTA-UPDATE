@@ -19,7 +19,9 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
+
 
 # ─── In-memory state ──────────────────────────────────────────────────────────
 
@@ -242,6 +244,11 @@ class DeviceStatus(BaseModel):
     ota_progress: Optional[int] = None
     state: Optional[str] = None   # 'flashing' | 'complete' | 'error'
     firmware: Optional[str] = None
+    temp: Optional[str] = None
+    heap: Optional[str] = None
+    rssi: Optional[int] = None
+    ip: Optional[str] = None
+    last_heartbeat: Optional[str] = None
 
 class LogEntry(BaseModel):
     level: str  # INFO | WARN | ERROR
@@ -279,6 +286,13 @@ class FirmwareUploadJSON(BaseModel):
 # ─── Helper ───────────────────────────────────────────────────────────────────
 
 def make_device(data: RegisterDevice) -> dict:
+    idx = len(devices) + 1
+    known_ips = {
+        "ESP-A1F3": "192.168.1.101",
+        "ESP-B2C4": "192.168.1.102",
+        "ESP-C9D1": "192.168.1.103",
+    }
+    ip = known_ips.get(data.id, f"192.168.1.{100 + idx}")
     return {
         "id": data.id,
         "name": getattr(data, "name", None) or data.id,
@@ -291,6 +305,11 @@ def make_device(data: RegisterDevice) -> dict:
         "heartbeat_rate": getattr(data, "heartbeat_rate", None) or 5,
         "gpio": {"D0": 0, "D1": 0, "D2": 0, "D3": 0},
         "lcd": {"row1": "Hello World!", "row2": "Sys: RUNNING"} if data.template == "lcd" else None,
+        "temp": "32.0 °C",
+        "heap": "214 KB",
+        "rssi": -58,
+        "ip": ip,
+        "last_heartbeat": datetime.utcnow().strftime("%I:%M:%S %p"),
         "ota_pending": None,
         "ota_progress": None,
         "config": {},

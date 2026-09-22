@@ -30,6 +30,23 @@ async def capture():
         await page.screenshot(path=p1_art)
         print(f"Saved: {p1}")
 
+        # 1a. PC-A Device Details Overlay Modal Card
+        print("Capturing PC-A Device Details Modal Card...")
+        details_btn = page.locator("text=Details").first
+        if await details_btn.count() > 0:
+            await details_btn.click()
+            await asyncio.sleep(1)
+            p_dev = os.path.join(OUTPUT_DIR, "pc_a_dashboard_device_panel.png")
+            p_dev_art = os.path.join(ARTIFACT_DIR, "pc_a_dashboard_device_panel.png")
+            await page.screenshot(path=p_dev)
+            await page.screenshot(path=p_dev_art)
+            print(f"Saved: {p_dev}")
+            # Close modal by clicking ✕
+            close_btn = page.locator("text=✕").first
+            if await close_btn.count() > 0:
+                await close_btn.click()
+            await asyncio.sleep(0.5)
+
         # 1b. PC-A Analytics Page (Standard 1440x900)
         print("Capturing PC-A Analytics Page (1440x900)...")
         analytics_btn = page.locator("text=Analytics").first

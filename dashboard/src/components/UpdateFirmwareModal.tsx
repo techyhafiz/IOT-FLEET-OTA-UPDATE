@@ -118,9 +118,6 @@ export function UpdateFirmwareModal({
               <span className="text-xl">⚡</span>
               <h3 className="font-mono font-bold text-slate-900 text-base">Update Firmware Deployment</h3>
             </div>
-            <p className="text-xs font-mono text-slate-500 mt-0.5">
-              Select target firmware or issue a rollback for selected fleet devices
-            </p>
           </div>
           <button
             onClick={onClose}

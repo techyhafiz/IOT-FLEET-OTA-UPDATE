@@ -18,13 +18,6 @@ export default function App() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [panelDevice, setPanelDevice] = useState<Device | null>(null)
   const [showUpdateModal, setShowUpdateModal] = useState(false)
-  const [now, setNow] = useState(new Date())
-
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 1000)
-    return () => clearInterval(t)
-  }, [])
-
   const loadAll = useCallback(async () => {
     const [devs, fws] = await Promise.all([
       api.get('/api/devices'),
@@ -106,93 +99,22 @@ export default function App() {
     setShowUpdateModal(true)
   }
 
-  const formattedUtcTime = now.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: true,
-  }) + ' UTC'
-
   return (
-    <div className="h-screen bg-slate-50/50 text-slate-900 flex flex-col font-sans overflow-hidden">
-      {/* ─── TOP MASTER NAVBAR (Compact: zero scroll) ─────────────────────────── */}
-      <header className="border-b border-slate-200 bg-white px-5 py-2 flex items-center justify-between shrink-0 shadow-2xs z-20">
-        {/* Left: Branding & Subtitle */}
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-bold text-lg shadow-xs">
+    <div className="h-screen bg-slate-50/50 text-slate-900 flex font-sans overflow-hidden">
+      {/* ─── LEFT SIDEBAR ────────────────────────────────────────────────────────── */}
+      <aside className="w-52 border-r border-slate-200 bg-white flex flex-col p-3 shrink-0 shadow-2xs">
+        {/* Brand Header */}
+        <div className="flex items-center gap-2.5 px-2 py-2.5 mb-3 border-b border-slate-100">
+          <div className="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-bold text-base shadow-xs shrink-0">
             ⚡
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-sm font-bold text-slate-900 font-sans tracking-tight">IoT OTA Mission Control</h1>
-              <span className="text-[9px] font-mono font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 px-1.5 py-0.2 rounded-full">
-                PC-A
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-500 font-sans leading-none">ESP32 Fleet OTA Deployment</p>
+          <div className="min-w-0">
+            <h1 className="text-xs font-bold text-slate-900 leading-tight uppercase tracking-tight">OTA Fleet Management</h1>
           </div>
         </div>
 
-        {/* Right: Online Pill, WS Status, UTC Clock, Bell, Profile Avatar */}
-        <div className="flex items-center gap-2.5">
-          {/* Online count */}
-          <span className="flex items-center gap-1.5 text-xs font-sans text-emerald-800 bg-emerald-50 border border-emerald-300 px-2.5 py-0.5 rounded-full font-semibold shadow-2xs">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            {onlineCount} Online
-          </span>
-
-          {/* WebSocket transport status */}
-          <div
-            className={`flex items-center gap-1.5 text-xs font-sans px-2.5 py-0.5 rounded-full border font-semibold shadow-2xs ${
-              connected
-                ? 'border-indigo-200 text-indigo-700 bg-indigo-50'
-                : 'border-rose-200 text-rose-700 bg-rose-50'
-            }`}
-          >
-            <span
-              className={`w-1.5 h-1.5 rounded-full ${
-                connected ? 'bg-indigo-600 animate-pulse' : 'bg-rose-500'
-              }`}
-            />
-            {connected ? 'WS Live' : 'WS Offline'}
-          </div>
-
-          {/* Clock: Anchored with icon and timezone */}
-          <span className="flex items-center gap-1.5 text-xs font-mono text-slate-700 font-medium bg-slate-100/80 px-2.5 py-0.5 rounded-full border border-slate-200 shadow-2xs">
-            <svg className="w-3 h-3 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <circle cx="12" cy="12" r="10" />
-              <polyline points="12 6 12 12 16 14" />
-            </svg>
-            {formattedUtcTime}
-          </span>
-
-          {/* Notification Bell with red alert dot */}
-          <button
-            title="Notifications"
-            className="relative w-7 h-7 rounded-full border border-slate-200 hover:bg-slate-50 flex items-center justify-center text-slate-600 cursor-pointer transition-colors shadow-2xs"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-            </svg>
-            <span className="w-1.5 h-1.5 rounded-full bg-red-500 absolute top-1 right-1 border border-white" />
-          </button>
-
-          {/* User Avatar with Chevron */}
-          <div className="flex items-center gap-1 cursor-pointer">
-            <div className="w-7 h-7 rounded-full bg-emerald-800 text-white font-bold flex items-center justify-center text-xs shadow-xs">
-              H
-            </div>
-            <span className="text-slate-400 text-[10px] font-bold">⌵</span>
-          </div>
-        </div>
-      </header>
-
-      {/* ─── MAIN WORKSPACE: SIDEBAR + CONTENT VIEWPORT ────────────────────────── */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left Sidebar */}
-        <aside className="w-48 border-r border-slate-200 bg-white flex flex-col justify-between p-2.5 shrink-0 shadow-2xs">
-          {/* Nav Links */}
-          <div className="space-y-0.5">
+        {/* Nav Links */}
+        <div className="space-y-0.5 flex-1">
             <button
               onClick={() => setTab('home')}
               className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
@@ -279,22 +201,10 @@ export default function App() {
             </button>
           </div>
 
-          {/* Bottom Sidebar Status Card */}
-          <div className="bg-slate-50/80 border border-slate-200/90 rounded-xl p-2 space-y-1 shadow-2xs">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-[11px] font-bold text-slate-800">System Online</span>
-              </div>
-              <span className="text-[9px] font-mono font-semibold text-slate-400">v1.0.0</span>
-            </div>
-            <p className="text-[10px] text-slate-400 font-medium">Build • Deploy • Monitor</p>
-            <p className="text-[10px] font-bold text-emerald-700 leading-none">Smarter IoT</p>
-          </div>
         </aside>
 
         {/* Right Main Content */}
-        <main className="flex-1 overflow-y-auto bg-slate-50/50 p-4 lg:p-6">
+        <main className="flex-1 overflow-y-auto bg-slate-50/50 p-3 lg:p-4">
           {(tab === 'home' || tab === 'devices') && (
             <FleetGrid
               devices={devices}
@@ -348,9 +258,8 @@ export default function App() {
             </div>
           )}
         </main>
-      </div>
 
-      {/* Slide-in Device Telemetry Inspection Drawer */}
+      {/* Device Telemetry Inspection Overlay Modal */}
       {panelDevice && (
         <DevicePanel
           device={panelDevice}

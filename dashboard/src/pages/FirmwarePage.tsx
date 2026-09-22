@@ -32,12 +32,77 @@ void loop() {
 }
 `
 
+const FIRMWARE_PRESETS = [
+  {
+    id: 'sensor',
+    title: '📡 IoT Telemetry Node (v1.3.0)',
+    desc: 'High-precision ADC sensor reading with deep-sleep telemetry loop.',
+    version: 'v1.3.0',
+    filename: 'telemetry_sensor_v1.3.0.cpp',
+    code: SAMPLE_C_CODE,
+  },
+  {
+    id: 'led',
+    title: '💡 2-LED Blink & GPIO Controller (v1.2.0)',
+    desc: 'Dual LED output driver with pulse modulation and status pins.',
+    version: 'v1.2.0',
+    filename: 'led_controller_v1.2.0.cpp',
+    code: `#include <WiFi.h>
+
+const int LED1_PIN = 16;
+const int LED2_PIN = 17;
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(LED1_PIN, OUTPUT);
+  pinMode(LED2_PIN, OUTPUT);
+  Serial.println("[FIRMWARE v1.2.0] Dual LED Controller Initialized.");
+}
+
+void loop() {
+  digitalWrite(LED1_PIN, HIGH);
+  digitalWrite(LED2_PIN, LOW);
+  delay(1000);
+  digitalWrite(LED1_PIN, LOW);
+  digitalWrite(LED2_PIN, HIGH);
+  delay(1000);
+}
+`,
+  },
+  {
+    id: 'lcd',
+    title: '🖥 16×2 Character LCD Display (v1.1.0)',
+    desc: 'I2C 1602 LCD driver displaying node status and mesh telemetry.',
+    version: 'v1.1.0',
+    filename: 'lcd_display_v1.1.0.cpp',
+    code: `#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+void setup() {
+  lcd.init();
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+  lcd.print("Sys: RUNNING");
+  lcd.setCursor(0, 1);
+  lcd.print("Mesh Node Active");
+}
+
+void loop() {
+  delay(5000);
+}
+`,
+  },
+]
+
 export function FirmwarePage({ firmware, onRefresh }: Props) {
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [newVersion, setNewVersion] = useState('')
   const [newDescription, setNewDescription] = useState('')
   const [fileName, setFileName] = useState<string | null>(null)
   const [fileContent, setFileContent] = useState<string | null>(null)
+  const [selectedPreset, setSelectedPreset] = useState<string | null>(null)
   
   // Progress states
   const [uploadProgress, setUploadProgress] = useState<number>(0)
@@ -46,7 +111,16 @@ export function FirmwarePage({ firmware, onRefresh }: Props) {
 
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
+  const handleSelectPreset = (preset: typeof FIRMWARE_PRESETS[0]) => {
+    setSelectedPreset(preset.id)
+    setFileName(preset.filename)
+    setNewVersion(preset.version)
+    setNewDescription(preset.desc)
+    setFileContent(preset.code)
+  }
+
   const handleFileSelected = (file: File) => {
+    setSelectedPreset(null)
     setFileName(file.name)
     const match = file.name.match(/v\d+\.\d+\.\d+/)
     if (match) {
@@ -67,10 +141,7 @@ export function FirmwarePage({ firmware, onRefresh }: Props) {
   }
 
   const handleLoadSample = () => {
-    setFileName('telemetry_sensor_v1.3.0.cpp')
-    setNewVersion('v1.3.0')
-    setNewDescription('High-precision ADC sensor reading with deep-sleep telemetry loop.')
-    setFileContent(SAMPLE_C_CODE)
+    handleSelectPreset(FIRMWARE_PRESETS[0])
   }
 
   const startUploadAndValidate = async () => {
@@ -224,17 +295,43 @@ export function FirmwarePage({ firmware, onRefresh }: Props) {
               </button>
             </div>
 
-            {/* Quick Demo Sample Button */}
-            <div className="bg-cyan-50/70 border border-cyan-200 rounded-xl p-3 flex items-center justify-between text-xs font-mono">
-              <span className="text-cyan-950">Quick demo? Use ready-to-test C sketch:</span>
-              <button
-                type="button"
-                onClick={handleLoadSample}
-                disabled={isProcessing}
-                className="px-2.5 py-1 bg-cyan-700 hover:bg-cyan-800 text-white rounded-lg font-bold transition-colors"
-              >
-                Load Sample C File
-              </button>
+            {/* 🎛 FIRMWARE PRESETS */}
+            <div className="space-y-2">
+              <label className="text-xs font-mono font-bold text-slate-600 uppercase tracking-wider block">
+                🎛 FIRMWARE PRESETS
+              </label>
+              <div className="grid grid-cols-1 gap-2">
+                {FIRMWARE_PRESETS.map(preset => {
+                  const isSelected = selectedPreset === preset.id
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => handleSelectPreset(preset)}
+                      disabled={isProcessing}
+                      className={`text-left p-2.5 rounded-xl border transition-all cursor-pointer ${
+                        isSelected
+                          ? 'border-emerald-500 bg-emerald-50/70 ring-2 ring-emerald-200 shadow-2xs'
+                          : 'border-slate-200 bg-slate-50/70 hover:bg-slate-100/60 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono font-bold text-xs text-slate-900">
+                          {preset.title}
+                        </span>
+                        {isSelected && (
+                          <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded">
+                            ✓ Selected
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500 font-sans mt-0.5 leading-tight">
+                        {preset.desc}
+                      </p>
+                    </button>
+                  )
+                })}
+              </div>
             </div>
 
             {/* File Input */}

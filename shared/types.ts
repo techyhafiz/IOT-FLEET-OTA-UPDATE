@@ -8,8 +8,13 @@ export interface Device {
   uptime: number;
   gpio: { D0: 0 | 1; D1: 0 | 1; D2: 0 | 1; D3: 0 | 1 };
   lcd?: { row1: string; row2: string };
-  ota_pending?: string;
-  ota_progress?: number;
+  temp?: string;
+  heap?: string;
+  rssi?: number;
+  ip?: string;
+  last_heartbeat?: string;
+  ota_pending?: string | null;
+  ota_progress?: number | null;
   name?: string;
   heartbeat_rate?: number;
   config?: Record<string, unknown>;

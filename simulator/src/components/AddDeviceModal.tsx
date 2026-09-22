@@ -7,14 +7,14 @@ const TEMPLATES = [
     icon: '💡',
     name: '2-LED Controller',
     desc: 'D0 → LED 1  ·  D1 → LED 2',
-    sub: 'GPIO presets available',
+    sub: 'Digital GPIO outputs',
   },
   {
     id: 'lcd' as const,
     icon: '🖥',
     name: '16×2 LCD Display',
     desc: 'I2C LCD simulation',
-    sub: 'Text presets available',
+    sub: '16×2 character screen',
   },
 ]
 

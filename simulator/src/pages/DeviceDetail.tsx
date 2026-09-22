@@ -10,18 +10,6 @@ import { api } from '../hooks/useWebSocket'
 
 const FIRMWARE_VERSIONS = ['v1.0.0', 'v1.1.0', 'v1.2.0']
 
-const LED_PRESETS: { label: string; desc: string; gpio: { D0: 0 | 1; D1: 0 | 1 } }[] = [
-  { label: 'Preset 1', desc: 'LED1 ON · LED2 OFF', gpio: { D0: 1, D1: 0 } },
-  { label: 'Preset 2', desc: 'LED1 OFF · LED2 ON', gpio: { D0: 0, D1: 1 } },
-  { label: 'Preset 3', desc: 'Both ON', gpio: { D0: 1, D1: 1 } },
-]
-
-const LCD_PRESETS = [
-  { label: 'Preset 1', row1: 'Hello World!', row2: 'Sys: RUNNING' },
-  { label: 'Preset 2', row1: 'OTA System', row2: 'v1.2.0 Ready' },
-  { label: 'Preset 3', row1: 'Device Ready', row2: '' },
-]
-
 interface Props {
   devices: Device[]
   onDeviceUpdate: (d: Device) => void
@@ -33,7 +21,6 @@ export function DeviceDetail({ devices, onDeviceUpdate }: Props) {
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [showCode, setShowCode] = useState(false)
   const [showReset, setShowReset] = useState(false)
-  const [applyingPreset, setApplyingPreset] = useState<number | null>(null)
   const logEndRef = useRef<HTMLDivElement>(null)
 
   const device = devices.find(d => d.id === id)
@@ -63,37 +50,6 @@ export function DeviceDetail({ devices, onDeviceUpdate }: Props) {
   const isUpdating = (device.ota_progress ?? 0) > 0 && device.ota_progress !== null
   const availableFw = FIRMWARE_VERSIONS.filter(v => v !== device.firmware)
 
-  async function applyLedPreset(idx: number) {
-    setApplyingPreset(idx)
-    const preset = LED_PRESETS[idx]
-    const newGpio = { ...gpio, ...preset.gpio }
-    await api.post(`/api/devices/${device!.id}/status`, { gpio: newGpio })
-    onDeviceUpdate({ ...device!, gpio: newGpio })
-    await api.post(`/api/devices/${device!.id}/logs`, {
-      level: 'INFO',
-      msg: `Applied ${preset.label}: ${preset.desc}`,
-    })
-    api.get(`/api/devices/${device!.id}/logs`).then(setLogs)
-    setApplyingPreset(null)
-  }
-
-  async function applyLcdPreset(idx: number) {
-    setApplyingPreset(idx)
-    const preset = LCD_PRESETS[idx]
-    const newLcd = { row1: preset.row1, row2: preset.row2 || device!.id }
-    await api.post(`/api/devices/${device!.id}/status`, {
-      lcd_row1: newLcd.row1,
-      lcd_row2: newLcd.row2,
-    })
-    onDeviceUpdate({ ...device!, lcd: newLcd })
-    await api.post(`/api/devices/${device!.id}/logs`, {
-      level: 'INFO',
-      msg: `LCD updated: "${newLcd.row1}" / "${newLcd.row2}"`,
-    })
-    api.get(`/api/devices/${device!.id}/logs`).then(setLogs)
-    setApplyingPreset(null)
-  }
-
   async function handleOTA() {
     const target = availableFw[availableFw.length - 1]
     if (!target) return
@@ -116,9 +72,9 @@ export function DeviceDetail({ devices, onDeviceUpdate }: Props) {
   }
 
   const logColor = (level: string) => {
-    if (level === 'WARN') return 'text-amber-400'
-    if (level === 'ERROR') return 'text-rose-400'
-    return 'text-emerald-400'
+    if (level === 'WARN') return 'text-amber-600'
+    if (level === 'ERROR') return 'text-rose-600'
+    return 'text-emerald-600'
   }
 
   return (
@@ -237,61 +193,10 @@ export function DeviceDetail({ devices, onDeviceUpdate }: Props) {
           </div>
         </div>
 
-        {/* Right: Presets + Logs */}
+        {/* Right: Logs */}
         <div className="lg:col-span-1 flex flex-col gap-5">
-
-          {/* Presets */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
-            <h3 className="text-xs font-mono font-bold text-slate-400 mb-3 uppercase tracking-wider">🎛 PRESETS</h3>
-            <div className="space-y-2.5">
-              {device.template === 'led' && LED_PRESETS.map((preset, idx) => (
-                <div key={idx} className="border border-slate-200 bg-slate-50/60 rounded-xl p-3 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex gap-1">
-                      <LedIndicator on={preset.gpio.D0 === 1} label="" size="sm"/>
-                      <LedIndicator on={preset.gpio.D1 === 1} label="" size="sm"/>
-                    </div>
-                    <div>
-                      <div className="text-xs font-mono font-bold text-slate-800">{preset.label}</div>
-                      <div className="text-[11px] font-mono text-slate-500 font-medium">{preset.desc}</div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => applyLedPreset(idx)}
-                    disabled={applyingPreset !== null}
-                    className="px-3 py-1.5 bg-white hover:bg-cyan-50 border border-slate-300 hover:border-cyan-300 text-cyan-700 font-mono text-xs rounded-lg font-bold transition-colors disabled:opacity-50 whitespace-nowrap shadow-2xs"
-                  >
-                    {applyingPreset === idx ? '...' : '▶ Apply'}
-                  </button>
-                </div>
-              ))}
-
-              {device.template === 'lcd' && LCD_PRESETS.map((preset, idx) => (
-                <div key={idx} className="border border-slate-200 bg-slate-50/60 rounded-xl p-3 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <LcdScreen
-                      row1={preset.row1}
-                      row2={preset.row2 || device.id}
-                      size="sm"
-                    />
-                    <div>
-                      <div className="text-xs font-mono font-bold text-slate-800">{preset.label}</div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => applyLcdPreset(idx)}
-                    disabled={applyingPreset !== null}
-                    className="px-3 py-1.5 bg-white hover:bg-cyan-50 border border-slate-300 hover:border-cyan-300 text-cyan-700 font-mono text-xs rounded-lg font-bold transition-colors disabled:opacity-50 whitespace-nowrap shadow-2xs"
-                  >
-                    {applyingPreset === idx ? '...' : '▶ Apply'}
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-
           {/* Live Logs */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex-1">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex-1 flex flex-col">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider">📋 LIVE LOGS</h3>
               <button onClick={() => setLogs([])}
@@ -299,22 +204,22 @@ export function DeviceDetail({ devices, onDeviceUpdate }: Props) {
                 Clear
               </button>
             </div>
-            <div className="bg-slate-900 rounded-xl p-3.5 h-48 overflow-y-auto font-mono text-xs space-y-1 shadow-inner">
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex-1 min-h-[220px] max-h-[380px] overflow-y-auto font-mono text-xs space-y-1">
               {logs.length === 0 && (
-                <div className="text-slate-500 italic">Waiting for log entries...</div>
+                <div className="text-slate-400 italic">Waiting for log entries...</div>
               )}
               {logs.map((log, i) => (
                 <div key={i} className="flex gap-2">
-                  <span className="text-slate-500 shrink-0">{log.timestamp}</span>
+                  <span className="text-slate-400 shrink-0">{log.timestamp}</span>
                   <span className={`shrink-0 font-bold ${logColor(log.level)}`}>[{log.level}]</span>
-                  <span className="text-slate-200">{log.msg}</span>
+                  <span className="text-slate-700">{log.msg}</span>
                 </div>
               ))}
               <div ref={logEndRef}/>
             </div>
 
             <button onClick={() => setShowCode(true)}
-              className="mt-3.5 w-full py-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-mono text-xs font-bold rounded-lg transition-colors shadow-2xs">
+              className="mt-3.5 w-full py-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-mono text-xs font-bold rounded-lg transition-colors shadow-2xs cursor-pointer">
               👁 View C++ Code
             </button>
           </div>
