@@ -10,6 +10,8 @@ export interface Device {
   lcd?: { row1: string; row2: string };
   ota_pending?: string;
   ota_progress?: number;
+  name?: string;
+  heartbeat_rate?: number;
   config?: Record<string, unknown>;
   registered_at: string;
 }
@@ -26,6 +28,8 @@ export interface FirmwareVersion {
   size: number;
   changelog: string;
   date: string;
+  sha256?: string;
+  is_faulty?: boolean;
   device_count?: number;
 }
 
@@ -58,3 +62,4 @@ export interface WSEvent {
   device_id: string;
   payload: unknown;
 }
+

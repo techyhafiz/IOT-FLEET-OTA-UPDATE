@@ -31,20 +31,154 @@ FIRMWARE_VERSIONS = [
         "size": 512000,
         "changelog": "LCD preset support, config push via JSON, improved reconnect logic.",
         "date": "2026-09-20",
+        "sha256": "4b82d9f1c7e9a3b2e5d8f0c1a4b7e2d9f8a3c5b7d1e4f6a9b2c8d3e5f7a1b4c6",
+        "is_faulty": False,
     },
     {
         "version": "v1.1.0",
         "size": 498000,
         "changelog": "GPIO stability improvements and faster OTA polling.",
         "date": "2026-09-10",
+        "sha256": "7c91e2a4b8d6f0c3e5a7b9d1f4c6e8a0b2d5f7c9e1a3b6d8f0c2e4a7b9d1f3c5",
+        "is_faulty": False,
     },
     {
         "version": "v1.0.0",
         "size": 480000,
-        "changelog": "Initial release.",
+        "changelog": "Initial release — basic telemetry and single LED loop.",
         "date": "2026-09-01",
+        "sha256": "3a7b9c1d5e8f0a2b4c6e8d0f2a4b6c8e0d2f4a6b8c0d2e4f6a8b0c2d4e6f8a0b",
+        "is_faulty": False,
+    },
+    {
+        "version": "v2.2.0-faulty",
+        "size": 524000,
+        "changelog": "FAULT SIMULATION: Corrupted heap allocator + infinite watchdog crash loop.",
+        "date": "2026-09-22",
+        "sha256": "deadbeef8badf00ddeadbeef8badf00ddeadbeef8badf00ddeadbeef8badf00d",
+        "is_faulty": True,
     },
 ]
+
+FIRMWARE_CODE = {
+    "v1.0.0": """#include <WiFi.h>
+#include <HTTPClient.h>
+
+const char* ssid = "Fleet_IoT_Mesh";
+const char* pass = "SecretPass123";
+const int PIN_LED1 = 2;
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(PIN_LED1, OUTPUT);
+  WiFi.begin(ssid, pass);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+  }
+  Serial.println("[OTA v1.0.0] Boot successful. Connected to AP.");
+}
+
+void loop() {
+  digitalWrite(PIN_LED1, HIGH);
+  delay(1000);
+  digitalWrite(PIN_LED1, LOW);
+  delay(1000);
+}
+""",
+    "v1.1.0": """#include <WiFi.h>
+#include <HTTPClient.h>
+
+const char* ssid = "Fleet_IoT_Mesh";
+const char* pass = "SecretPass123";
+const int PIN_LED1 = 2;
+const int PIN_LED2 = 4;
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(PIN_LED1, OUTPUT);
+  pinMode(PIN_LED2, OUTPUT);
+  WiFi.begin(ssid, pass);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(250);
+  }
+  Serial.println("[OTA v1.1.0] Dual-channel GPIO initialized.");
+}
+
+void loop() {
+  // Alternating flash pattern
+  digitalWrite(PIN_LED1, HIGH);
+  digitalWrite(PIN_LED2, LOW);
+  delay(400);
+  digitalWrite(PIN_LED1, LOW);
+  digitalWrite(PIN_LED2, HIGH);
+  delay(400);
+}
+""",
+    "v1.2.0": """#include <WiFi.h>
+#include <HTTPClient.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+const char* ssid = "Fleet_IoT_Mesh";
+const char* pass = "SecretPass123";
+const int PIN_LED1 = 2;
+const int PIN_LED2 = 4;
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(PIN_LED1, OUTPUT);
+  pinMode(PIN_LED2, OUTPUT);
+  
+  Wire.begin(21, 22);
+  lcd.init();
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+  lcd.print("ESP32 OTA v1.2.0");
+  lcd.setCursor(0, 1);
+  lcd.print("State: OPTIMAL");
+
+  WiFi.begin(ssid, pass);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(200);
+  }
+  Serial.println("[OTA v1.2.0] System running with I2C LCD matrix support.");
+}
+
+void loop() {
+  // Strobe LED sync
+  digitalWrite(PIN_LED1, HIGH);
+  digitalWrite(PIN_LED2, HIGH);
+  delay(200);
+  digitalWrite(PIN_LED1, LOW);
+  digitalWrite(PIN_LED2, LOW);
+  delay(600);
+}
+""",
+    "v2.2.0-faulty": """#include <WiFi.h>
+#include <esp_system.h>
+#include <esp_heap_caps.h>
+
+const char* ssid = "Fleet_IoT_Mesh";
+const char* pass = "SecretPass123";
+
+void setup() {
+  Serial.begin(115200);
+  Serial.println(">>> CRITICAL ERROR: FIRMWARE v2.2.0 CORRUPTED HEAP <<<");
+  delay(800);
+  // Simulate memory corruption / Watchdog abort
+  volatile int* p = (volatile int*)0x00000000;
+  Serial.println("Guru Meditation Error: Core 0 panic'ed (LoadProhibited). Exception was unhandled.");
+  Serial.println("Core 0 register dump: PC=0x40081234 PS=0x00060020 A0=0x80084567");
+  delay(400);
+  esp_restart(); // Infinite crash loop
+}
+
+void loop() {
+  // Unreachable
+}
+""",
+}
 
 # ─── WebSocket connection manager ─────────────────────────────────────────────
 
@@ -81,6 +215,13 @@ class RegisterDevice(BaseModel):
     firmware: str
     group: str
     template: str  # 'led' | 'lcd'
+    name: Optional[str] = None
+    heartbeat_rate: Optional[int] = 5
+
+class DeviceUpdate(BaseModel):
+    name: Optional[str] = None
+    group: Optional[str] = None
+    heartbeat_rate: Optional[int] = None
 
 class DeviceStatus(BaseModel):
     online: Optional[bool] = None
@@ -102,6 +243,10 @@ class GroupCreate(BaseModel):
 class GroupAssign(BaseModel):
     group: str
 
+class GroupOTAPush(BaseModel):
+    group: str
+    version: str
+
 class OTAPush(BaseModel):
     device_ids: list[str]
     version: str
@@ -119,12 +264,14 @@ class ConfigPush(BaseModel):
 def make_device(data: RegisterDevice) -> dict:
     return {
         "id": data.id,
+        "name": getattr(data, "name", None) or data.id,
         "mac": data.mac,
         "firmware": data.firmware,
         "group": data.group,
         "template": data.template,
         "online": True,
         "uptime": 0,
+        "heartbeat_rate": getattr(data, "heartbeat_rate", None) or 5,
         "gpio": {"D0": 0, "D1": 0, "D2": 0, "D3": 0},
         "lcd": {"row1": "Hello World!", "row2": "Sys: RUNNING"} if data.template == "lcd" else None,
         "ota_pending": None,
@@ -266,6 +413,26 @@ async def add_firmware(version: str, changelog: str = ""):
         f.write(f"Firmware {version}\n{changelog}\n")
     return {"created": version}
 
+@app.get("/api/firmware/{version}/code")
+async def get_firmware_code(version: str):
+    code = FIRMWARE_CODE.get(version, "// Custom uploaded firmware binary - source not indexed\n")
+    return {"version": version, "code": code}
+
+# Device Update (Metadata, Name, Group, Heartbeat)
+@app.patch("/api/devices/{device_id}")
+async def update_device_meta(device_id: str, data: DeviceUpdate):
+    if device_id not in devices:
+        raise HTTPException(status_code=404, detail="Device not found")
+    d = devices[device_id]
+    if data.name is not None:
+        d["name"] = data.name
+    if data.group is not None:
+        d["group"] = data.group
+    if data.heartbeat_rate is not None:
+        d["heartbeat_rate"] = data.heartbeat_rate
+    await manager.broadcast("device_status", device_id, d)
+    return d
+
 # OTA
 @app.post("/api/ota/push")
 async def push_ota(data: OTAPush):
@@ -280,6 +447,20 @@ async def push_ota(data: OTAPush):
             })
             results.append(did)
     return {"pushed": results, "version": data.version}
+
+@app.post("/api/ota/group")
+async def push_ota_group(data: GroupOTAPush):
+    target_ids = [d["id"] for d in devices.values() if d["group"] == data.group]
+    if not target_ids:
+        raise HTTPException(status_code=404, detail="No devices found in this group")
+    for did in target_ids:
+        devices[did]["ota_pending"] = data.version
+        devices[did]["ota_progress"] = 0
+        await manager.broadcast("ota_started", did, {
+            "from_version": devices[did]["firmware"],
+            "to_version": data.version,
+        })
+    return {"group": data.group, "pushed": target_ids, "version": data.version}
 
 @app.post("/api/ota/rollback")
 async def rollback_ota(data: OTARollback):

@@ -59,7 +59,16 @@ export const api = {
     })
     return r.json()
   },
+  async patch(path: string, body: unknown) {
+    const r = await fetch(`${API}${path}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    return r.json()
+  },
 }
+
 
 export function useApi<T>(path: string) {
   const [data, setData] = useState<T | null>(null)

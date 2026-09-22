@@ -9,13 +9,22 @@ interface Props {
   onToggleSelect: (id: string) => void
   onToggleAll: () => void
   onOpenDevice: (d: Device) => void
+  onOpenSettings: (d: Device) => void
+  onUpdateGroup: (group: string) => void
 }
 
-function DeviceCard({ device, selected, onToggle, onOpen }: {
+function DeviceCard({
+  device,
+  selected,
+  onToggle,
+  onOpen,
+  onOpenSettings,
+}: {
   device: Device
   selected: boolean
   onToggle: () => void
   onOpen: () => void
+  onOpenSettings: () => void
 }) {
   const isUpdating = (device.ota_progress ?? 0) > 0 && device.ota_progress !== null
   const isOffline = !device.online
@@ -28,7 +37,7 @@ function DeviceCard({ device, selected, onToggle, onOpen }: {
         ${selected ? 'border-cyan-500 ring-2 ring-cyan-200 shadow-xs' : isOffline ? 'border-slate-200 bg-slate-50/60 opacity-60' : isUpdating ? 'border-cyan-500 shadow-md shadow-cyan-100' : 'border-slate-200 shadow-xs'}`}
     >
       {/* Checkbox */}
-      <div className="absolute top-3 left-3" onClick={e => { e.stopPropagation(); onToggle() }}>
+      <div className="absolute top-3 left-3 z-10" onClick={e => { e.stopPropagation(); onToggle() }}>
         <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
           selected ? 'bg-cyan-600 border-cyan-600 text-white' : 'border-slate-300 hover:border-slate-400 bg-white'
         }`}>
@@ -36,6 +45,19 @@ function DeviceCard({ device, selected, onToggle, onOpen }: {
         </div>
       </div>
 
+      {/* Settings Gear Button */}
+      <button
+        onClick={e => {
+          e.stopPropagation()
+          onOpenSettings()
+        }}
+        title="Configure Device Settings"
+        className="absolute top-3 right-3 z-10 w-7 h-7 rounded-full bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-colors text-xs"
+      >
+        ⚙️
+      </button>
+
+      {/* Hardware Board Graphic */}
       <Esp32Board
         size="sm"
         template={device.template}
@@ -50,28 +72,37 @@ function DeviceCard({ device, selected, onToggle, onOpen }: {
             <span>FLASHING</span><span>{device.ota_progress}%</span>
           </div>
           <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-            <div className="h-full bg-cyan-600 rounded-full transition-all duration-500"
-                 style={{ width: `${device.ota_progress}%` }}/>
+            <div
+              className="h-full bg-cyan-600 rounded-full transition-all duration-500"
+              style={{ width: `${device.ota_progress}%` }}
+            />
           </div>
         </div>
       )}
 
       <div className="text-center w-full">
         <div className="font-mono font-bold text-cyan-700 text-sm truncate">{device.id}</div>
+        {device.name && device.name !== device.id && (
+          <div className="text-xs font-mono text-slate-500 truncate font-medium">{device.name}</div>
+        )}
+
         <div className="flex items-center justify-center gap-1.5 mt-1">
           <span className={`w-2 h-2 rounded-full ${isOffline ? 'bg-rose-500' : 'bg-emerald-500 animate-pulse'}`}/>
           <span className={`text-xs font-mono font-semibold ${isOffline ? 'text-rose-600' : 'text-emerald-700'}`}>
             {isOffline ? 'OFFLINE' : 'ONLINE'}
           </span>
         </div>
+
         <div className="flex items-center justify-center gap-1.5 mt-1.5">
           <span className="text-base">{device.template === 'lcd' ? '🖥' : '💡'}</span>
           <span className="text-xs text-slate-600 font-mono font-medium">{device.template === 'lcd' ? '16×2 LCD' : '2-LED'}</span>
         </div>
+
         <div className="flex justify-center gap-2 mt-1.5 text-xs font-mono">
           <span className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-700 font-medium">{device.firmware}</span>
           <span className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-500 font-medium">{device.group}</span>
         </div>
+
         {!isOffline && (
           <div className="text-[11px] text-slate-400 font-mono mt-1">
             up: {Math.floor((device.uptime ?? 0) / 3600)}h {Math.floor(((device.uptime ?? 0) % 3600) / 60)}m
@@ -82,7 +113,16 @@ function DeviceCard({ device, selected, onToggle, onOpen }: {
   )
 }
 
-export function FleetGrid({ devices, groupFilter, selectedIds, onToggleSelect, onToggleAll, onOpenDevice }: Props) {
+export function FleetGrid({
+  devices,
+  groupFilter,
+  selectedIds,
+  onToggleSelect,
+  onToggleAll,
+  onOpenDevice,
+  onOpenSettings,
+  onUpdateGroup,
+}: Props) {
   const filtered = groupFilter ? devices.filter(d => d.group === groupFilter) : devices
 
   return (
@@ -90,15 +130,28 @@ export function FleetGrid({ devices, groupFilter, selectedIds, onToggleSelect, o
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <h2 className="font-mono text-slate-800 font-bold text-base">
-            {groupFilter ? groupFilter : 'All Devices'} ({filtered.length})
+            {groupFilter ? `Group: ${groupFilter}` : 'All Devices'} ({filtered.length})
           </h2>
           {filtered.length > 0 && (
-            <button onClick={onToggleAll}
-              className="text-xs font-mono text-slate-500 hover:text-slate-800 transition-colors">
+            <button
+              onClick={onToggleAll}
+              className="text-xs font-mono text-slate-500 hover:text-slate-800 transition-colors"
+            >
               {selectedIds.size === devices.length ? '☐ Deselect All' : '☑ Select All'}
             </button>
           )}
+
+          {/* Group 1-Click Update Button */}
+          {groupFilter && filtered.length > 0 && (
+            <button
+              onClick={() => onUpdateGroup(groupFilter)}
+              className="flex items-center gap-1.5 px-3 py-1 bg-cyan-50 hover:bg-cyan-100 text-cyan-800 border border-cyan-300 font-mono text-xs font-bold rounded-lg transition-colors shadow-xs"
+            >
+              <span>⚡</span> Update {groupFilter}
+            </button>
+          )}
         </div>
+
         {selectedIds.size > 0 && (
           <span className="text-xs font-mono text-cyan-700 bg-cyan-50 border border-cyan-200 px-2.5 py-1 rounded-md font-bold">
             {selectedIds.size} selected
@@ -114,6 +167,7 @@ export function FleetGrid({ devices, groupFilter, selectedIds, onToggleSelect, o
             selected={selectedIds.has(d.id)}
             onToggle={() => onToggleSelect(d.id)}
             onOpen={() => onOpenDevice(d)}
+            onOpenSettings={() => onOpenSettings(d)}
           />
         ))}
         {filtered.length === 0 && (
