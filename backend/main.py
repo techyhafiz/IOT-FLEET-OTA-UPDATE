@@ -751,8 +751,8 @@ seed_demo_devices()
 
 # ─── Routes ───────────────────────────────────────────────────────────────────
 
-@app.get("/health")
-@app.get("/api/health")
+@app.api_route("/health", methods=["GET", "HEAD", "POST", "OPTIONS"])
+@app.api_route("/api/health", methods=["GET", "HEAD", "POST", "OPTIONS"])
 async def health():
     return {"status": "healthy", "service": "IoT OTA Backend", "devices": len(devices)}
 
@@ -1381,9 +1381,9 @@ if os.path.isdir(dash_assets):
     app.mount("/assets", StaticFiles(directory=dash_assets), name="dashboard-assets")
 
 
-@app.get("/simulator", include_in_schema=False)
-@app.get("/simulator/", include_in_schema=False)
-@app.get("/simulator/{full_path:path}", include_in_schema=False)
+@app.api_route("/simulator", methods=["GET", "HEAD", "OPTIONS"], include_in_schema=False)
+@app.api_route("/simulator/", methods=["GET", "HEAD", "OPTIONS"], include_in_schema=False)
+@app.api_route("/simulator/{full_path:path}", methods=["GET", "HEAD", "OPTIONS"], include_in_schema=False)
 async def serve_simulator_spa(full_path: str = ""):
     """Serves the PC-B ESP32 Simulator single-page application and its assets."""
     if os.path.exists(SIMULATOR_DIST):
@@ -1399,8 +1399,8 @@ async def serve_simulator_spa(full_path: str = ""):
     )
 
 
-@app.get("/", include_in_schema=False)
-@app.get("/{full_path:path}", include_in_schema=False)
+@app.api_route("/", methods=["GET", "HEAD", "POST", "OPTIONS"], include_in_schema=False)
+@app.api_route("/{full_path:path}", methods=["GET", "HEAD", "POST", "OPTIONS"], include_in_schema=False)
 async def serve_dashboard_spa(full_path: str = ""):
     """Serves the PC-A Fleet Dashboard single-page application and its assets."""
     # Never intercept API, OTA, or WebSocket endpoints
