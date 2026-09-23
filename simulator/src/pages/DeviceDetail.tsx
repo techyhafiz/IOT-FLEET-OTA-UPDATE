@@ -1,38 +1,37 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import type { Device, LogEntry } from '@shared/types'
-import { Esp32Board } from '@shared/components/Esp32Board'
-import { LedIndicator } from '@shared/components/LedIndicator'
-import { LcdScreen } from '@shared/components/LcdScreen'
-import { CodeViewerModal } from '../components/CodeViewerModal'
-import { ResetFirmwareModal } from '../components/ResetFirmwareModal'
-import { api } from '../hooks/useWebSocket'
-
-const FIRMWARE_VERSIONS = ['v1.0.0', 'v1.1.0', 'v1.2.0']
+import type { Device } from '@shared/types'
+import { LedWiringDiagram, LcdWiringDiagram, type Pin } from '@shared/components'
+import { getSimControls } from '../hooks/useDeviceSimulator'
 
 interface Props {
   devices: Device[]
-  onDeviceUpdate: (d: Device) => void
 }
 
-export function DeviceDetail({ devices, onDeviceUpdate }: Props) {
+export function DeviceDetail({ devices }: Props) {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const [logs, setLogs] = useState<LogEntry[]>([])
   const [showCode, setShowCode] = useState(false)
-  const [showReset, setShowReset] = useState(false)
-  const logEndRef = useRef<HTMLDivElement>(null)
+  const [code, setCode] = useState<string | null>(null)
+  const [codeLoading, setCodeLoading] = useState(false)
+  const [confirmPower, setConfirmPower] = useState(false)
 
   const device = devices.find(d => d.id === id)
+  const controls = getSimControls(id ?? '')
 
+  // The running firmware's source, fetched live so a pushed update is visible.
+  // Re-fetches whenever the device's firmware version changes (OTA completed).
   useEffect(() => {
-    if (!id) return
-    api.get(`/api/devices/${id}/logs`).then(setLogs).catch(() => {})
-  }, [id])
-
-  useEffect(() => {
-    logEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [logs])
+    if (!showCode || !device) return
+    let cancelled = false
+    setCodeLoading(true)
+    fetch(`${import.meta.env.VITE_API_BASE ?? 'http://localhost:8000'}/api/firmware/${device.firmware}/code`)
+      .then(r => r.json())
+      .then(res => { if (!cancelled) setCode(res.code ?? '// Source not available') })
+      .catch(() => { if (!cancelled) setCode('// Failed to load source') })
+      .finally(() => { if (!cancelled) setCodeLoading(false) })
+    return () => { cancelled = true }
+  }, [showCode, device?.firmware])
 
   if (!device) {
     return (
@@ -46,194 +45,150 @@ export function DeviceDetail({ devices, onDeviceUpdate }: Props) {
   }
 
   const gpio = device.gpio ?? { D0: 0, D1: 0, D2: 0, D3: 0 }
-  const lcd = device.lcd ?? { row1: 'Hello World!', row2: 'Sys: RUNNING' }
+  const lcd = device.lcd ?? { row1: '', row2: '' }
+  const isOffline = !device.online
   const isUpdating = (device.ota_progress ?? 0) > 0 && device.ota_progress !== null
-  const availableFw = FIRMWARE_VERSIONS.filter(v => v !== device.firmware)
+  const wiredPins = (['D0', 'D1', 'D2', 'D3'] as Pin[]).slice(0, Math.max(1, device.led_count ?? 4))
 
-  async function handleOTA() {
-    const target = availableFw[availableFw.length - 1]
-    if (!target) return
-    await api.post('/api/ota/push', { device_ids: [device!.id], version: target })
-    await api.post(`/api/devices/${device!.id}/logs`, {
-      level: 'INFO',
-      msg: `OTA initiated → ${target}`,
-    })
-    api.get(`/api/devices/${device!.id}/logs`).then(setLogs)
-  }
-
-  async function handleReset(version: string) {
-    await api.post('/api/ota/rollback', { device_id: device!.id, version })
-    setShowReset(false)
-    await api.post(`/api/devices/${device!.id}/logs`, {
-      level: 'WARN',
-      msg: `Rollback to ${version} initiated`,
-    })
-    api.get(`/api/devices/${device!.id}/logs`).then(setLogs)
-  }
-
-  const logColor = (level: string) => {
-    if (level === 'WARN') return 'text-amber-600'
-    if (level === 'ERROR') return 'text-rose-600'
-    return 'text-emerald-600'
+  const togglePower = async () => {
+    const next = !device.online
+    setConfirmPower(false)
+    controls?.setOnline(next)
+    try {
+      await api_status(device.id, next)
+    } catch { /* local sim state is authoritative for the UI */ }
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      {/* Back + header */}
-      <div className="flex items-center gap-4 mb-6">
-        <button onClick={() => navigate('/')}
-          className="text-slate-500 hover:text-cyan-700 font-mono text-sm font-bold flex items-center gap-1 transition-colors">
-          ← Back
-        </button>
-        <div className="flex items-center gap-3">
-          <span className="font-mono font-bold text-2xl text-cyan-700">{device.id}</span>
-          <span className={`text-xs px-2.5 py-1 rounded-full font-mono font-semibold ${device.online ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
-            {device.online ? '● ONLINE' : '● OFFLINE'}
-          </span>
-          <span className="text-xs px-2.5 py-1 bg-slate-100 border border-slate-200 rounded-full font-mono font-medium text-slate-600">{device.group}</span>
-          <span className="text-xs px-2.5 py-1 bg-slate-100 border border-slate-200 rounded-full font-mono font-medium text-slate-700">{device.firmware}</span>
-          <span className="text-2xl">{device.template === 'lcd' ? '🖥' : '💡'}</span>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: Board */}
-        <div className="lg:col-span-1 bg-white border border-slate-200 rounded-2xl p-6 flex flex-col items-center gap-4 shadow-xs">
-          <h3 className="text-xs font-mono font-bold text-slate-400 self-start uppercase tracking-wider">ESP32 BOARD</h3>
-          <Esp32Board
-            size="md"
-            template={device.template}
-            isUpdating={isUpdating}
-            isOffline={!device.online}
-            pins={{ D0: gpio.D0, D1: gpio.D1, D2: gpio.D2, D3: gpio.D3 }}
-          />
-          <div className="text-xs font-mono text-slate-400 text-center font-medium">
-            MAC: {device.mac}
-          </div>
-        </div>
-
-        {/* Middle: Visual state */}
-        <div className="lg:col-span-1 flex flex-col gap-5">
-
-          {/* LED Panel */}
-          {device.template === 'led' && (
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
-              <h3 className="text-xs font-mono font-bold text-slate-400 mb-4 uppercase tracking-wider">GPIO / LED STATE</h3>
-              <div className="flex justify-around items-end py-2">
-                <LedIndicator on={gpio.D0 === 1} label="LED 1 (D0)" size="lg"/>
-                <LedIndicator on={gpio.D1 === 1} label="LED 2 (D1)" size="lg"/>
-              </div>
-              <div className="mt-4 space-y-2 text-xs font-mono">
-                {(['D0','D1','D2','D3'] as const).map(pin => (
-                  <div key={pin} className="flex items-center gap-2">
-                    <span className="text-slate-600 font-bold w-6">{pin}</span>
-                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full transition-all duration-300 ${gpio[pin] ? 'bg-cyan-600 w-full' : 'w-0'}`}/>
-                    </div>
-                    <span className={`w-10 text-right font-bold ${gpio[pin] ? 'text-cyan-700' : 'text-slate-400'}`}>
-                      {gpio[pin] ? 'HIGH' : 'LOW'}
-                    </span>
-                  </div>
-                ))}
-              </div>
+    <div className="p-5 flex justify-center">
+      <div className="w-full max-w-3xl space-y-4">
+        {/* Header: identity + power + code */}
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-xs p-4 flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => navigate('/')}
+                className="text-slate-400 hover:text-slate-700 text-sm font-mono font-bold"
+                title="Back to grid"
+              >←</button>
+              <h1 className="font-mono font-bold text-cyan-700 text-lg truncate">{device.id}</h1>
             </div>
-          )}
-
-          {/* LCD Panel */}
-          {device.template === 'lcd' && (
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
-              <h3 className="text-xs font-mono font-bold text-slate-400 mb-4 uppercase tracking-wider">LCD SCREEN</h3>
-              <div className="flex justify-center">
-                <LcdScreen row1={lcd.row1} row2={lcd.row2} size="md"/>
-              </div>
-              <div className="mt-3 text-center text-xs font-mono text-slate-400 font-medium">
-                I2C addr: 0x27 · Backlight: ON
-              </div>
-            </div>
-          )}
-
-          {/* OTA Firmware */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
-            <h3 className="text-xs font-mono font-bold text-slate-400 mb-3 uppercase tracking-wider">🔄 OTA FIRMWARE</h3>
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <div className="text-xs text-slate-500 font-mono">Installed</div>
-                <div className="font-mono font-bold text-slate-900 text-base">{device.firmware}</div>
-              </div>
-              {availableFw.length > 0 && (
-                <div className="text-right">
-                  <div className="text-xs text-slate-500 font-mono">Available</div>
-                  <div className="font-mono font-bold text-amber-700">{availableFw[availableFw.length - 1]} 🆕</div>
-                </div>
+            <div className="flex items-center gap-3 mt-1 ml-6">
+              <span className={`flex items-center gap-1.5 text-xs font-mono font-bold ${isOffline ? 'text-rose-600' : 'text-emerald-700'}`}>
+                <span className={`w-2 h-2 rounded-full ${isOffline ? 'bg-rose-500' : 'bg-emerald-500 animate-pulse'}`} />
+                {isOffline ? 'OFFLINE' : 'ONLINE'}
+              </span>
+              <span className="text-[11px] font-mono text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded">
+                {device.firmware}
+              </span>
+              {device.ota_state === 'failed' && (
+                <span className="text-[11px] font-mono text-red-700 font-bold animate-pulse">
+                  UPDATE FAILED — RETRYING…
+                </span>
               )}
-            </div>
-            {isUpdating && (
-              <div className="mb-3">
-                <div className="flex justify-between text-xs font-mono text-cyan-700 font-bold mb-1">
-                  <span>Flashing...</span><span>{device.ota_progress}%</span>
-                </div>
-                <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-cyan-600 rounded-full transition-all duration-500"
-                       style={{ width: `${device.ota_progress}%` }}/>
-                </div>
-              </div>
-            )}
-            <div className="flex gap-2 pt-1">
-              {availableFw.length > 0 && !isUpdating && (
-                <button onClick={handleOTA}
-                  className="flex-1 py-2 bg-cyan-600 hover:bg-cyan-700 text-white font-mono text-xs rounded-lg font-bold shadow-xs transition-colors">
-                  ⬆ Update to {availableFw[availableFw.length - 1]}
-                </button>
+              {isUpdating && (
+                <span className="text-[11px] font-mono text-cyan-700 font-bold animate-pulse">
+                  FLASHING {device.ota_progress}%
+                </span>
               )}
-              <button onClick={() => setShowReset(true)}
-                className="flex-1 py-2 bg-slate-100 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 text-amber-800 font-mono text-xs rounded-lg font-bold transition-colors shadow-2xs">
-                ↺ Reset Firmware
-              </button>
             </div>
           </div>
-        </div>
 
-        {/* Right: Logs */}
-        <div className="lg:col-span-1 flex flex-col gap-5">
-          {/* Live Logs */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex-1 flex flex-col">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider">📋 LIVE LOGS</h3>
-              <button onClick={() => setLogs([])}
-                className="text-xs font-mono text-slate-400 hover:text-slate-700 font-medium transition-colors">
-                Clear
-              </button>
-            </div>
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex-1 min-h-[220px] max-h-[380px] overflow-y-auto font-mono text-xs space-y-1">
-              {logs.length === 0 && (
-                <div className="text-slate-400 italic">Waiting for log entries...</div>
-              )}
-              {logs.map((log, i) => (
-                <div key={i} className="flex gap-2">
-                  <span className="text-slate-400 shrink-0">{log.timestamp}</span>
-                  <span className={`shrink-0 font-bold ${logColor(log.level)}`}>[{log.level}]</span>
-                  <span className="text-slate-700">{log.msg}</span>
-                </div>
-              ))}
-              <div ref={logEndRef}/>
-            </div>
-
-            <button onClick={() => setShowCode(true)}
-              className="mt-3.5 w-full py-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-mono text-xs font-bold rounded-lg transition-colors shadow-2xs cursor-pointer">
-              👁 View C++ Code
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => setShowCode(true)}
+              className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-cyan-50 border border-slate-200 hover:border-cyan-300 text-cyan-700 text-xs font-mono font-bold transition-colors"
+              title="View running firmware source"
+            >
+              {'</>'} View Code
+            </button>
+            <button
+              onClick={() => setConfirmPower(true)}
+              className={`px-3 py-2 rounded-xl text-xs font-mono font-bold border transition-colors ${
+                device.online
+                  ? 'bg-emerald-50 hover:bg-emerald-100 border-emerald-300 text-emerald-700'
+                  : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-600'
+              }`}
+              title={device.online ? 'Power off' : 'Power on'}
+            >
+              ⏻ {device.online ? 'ON' : 'OFF'}
             </button>
           </div>
         </div>
+
+        {/* Cross-template firmware — device won't boot */}
+        {device.ota_state === 'incompatible' && (
+          <div className="bg-red-50 border border-red-300 rounded-2xl px-4 py-3 text-sm font-mono font-bold text-red-700">
+            ⚠ DEVICE NOT COMPATIBLE / NO RESPONSE — the pushed firmware does not match this hardware. Power-cycle to recover.
+          </div>
+        )}
+
+        {/* Wiring diagram with live HIGH/LOW + live LCD text */}
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-xs p-4">
+          {device.template === 'lcd' ? (
+            <LcdWiringDiagram row1={lcd.row1} row2={lcd.row2} online={!isOffline} />
+          ) : (
+            <LedWiringDiagram gpio={gpio} wiredPins={wiredPins} online={!isOffline} />
+          )}
+        </div>
       </div>
 
-      {showCode && <CodeViewerModal device={device} onClose={() => setShowCode(false)}/>}
-      {showReset && (
-        <ResetFirmwareModal
-          currentFirmware={device.firmware}
-          onConfirm={handleReset}
-          onClose={() => setShowReset(false)}
-        />
+      {/* Power confirm */}
+      {confirmPower && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl p-5 w-full max-w-xs text-center space-y-3">
+            <p className="font-mono text-sm font-bold text-slate-900">
+              {device.online ? 'Power off' : 'Power on'} {device.id}?
+            </p>
+            <p className="text-xs text-slate-500 font-mono">
+              {device.online
+                ? 'The device disconnects from PC-A and stops responding.'
+                : 'The device reconnects to PC-A and resumes.'}
+            </p>
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => setConfirmPower(false)}
+                className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-lg font-mono font-bold">
+                Cancel
+              </button>
+              <button onClick={togglePower}
+                className={`flex-1 py-2 text-white text-xs rounded-lg font-mono font-bold ${device.online ? 'bg-rose-600 hover:bg-rose-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}>
+                {device.online ? 'Power Off' : 'Power On'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Code viewer — shows the sketch actually running on this device */}
+      {showCode && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-3xl shadow-2xl animate-scale-in overflow-hidden max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
+              <div>
+                <h3 className="font-mono font-bold text-slate-900 text-sm">
+                  {'</>'} Running firmware — <span className="text-cyan-700">{device.firmware}</span>
+                </h3>
+                <p className="text-[10px] font-mono text-slate-500 mt-0.5">
+                  {isUpdating ? '⇣ update in progress…' : 'live from PC-A firmware repository'}
+                </p>
+              </div>
+              <button onClick={() => setShowCode(false)} className="text-slate-400 hover:text-slate-700 font-bold">✕</button>
+            </div>
+            <pre className="flex-1 overflow-auto bg-slate-900 text-emerald-100 font-mono text-[11px] leading-relaxed p-4 m-0 whitespace-pre">
+              {codeLoading ? 'Loading source…' : (code ?? '// Source not available')}
+            </pre>
+          </div>
+        </div>
       )}
     </div>
   )
+}
+
+async function api_status(deviceId: string, online: boolean) {
+  const base = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000'
+  await fetch(`${base}/api/devices/${deviceId}/status`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ online }),
+  })
 }

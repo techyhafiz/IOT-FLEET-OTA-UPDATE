@@ -48,8 +48,10 @@ export const Esp32Board: React.FC<Props> = ({
         style={{
           transform: `scale(${scale})`,
           transformOrigin: 'center center',
-          width: 107,
-          height: 204,
+          /* Layout at the SCALED size, not the unscaled one — otherwise the
+             inner box overflows its container and overlaps siblings. */
+          width: width,
+          height: height,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',

@@ -15,8 +15,14 @@ export interface Device {
   last_heartbeat?: string;
   ota_pending?: string | null;
   ota_progress?: number | null;
+  /** OTA lifecycle state: 'failed' (offline, retrying) | 'incompatible' (cross-template bricked) */
+  ota_state?: 'failed' | 'incompatible' | null;
   name?: string;
   heartbeat_rate?: number;
+  /** External hardware chosen at add time (sim mode): LEDs wired on D0..D{n-1} */
+  led_count?: number | null;
+  /** Firmware-driven behaviour resolved on the backend (e.g. 'ip' / 'uptime') */
+  fw_dynamic?: string | null;
   config?: Record<string, unknown>;
   registered_at: string;
 }

@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import type { WSEvent } from '@shared/types'
-
-const API = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000'
-const WS_URL = API.replace(/^http/, 'ws') + '/ws/events'
+const envBase = import.meta.env.VITE_API_BASE
+const isLocalhost = envBase && (envBase.includes('localhost') || envBase.includes('127.0.0.1'))
+const API = (import.meta.env.PROD && isLocalhost)
+  ? (typeof window !== 'undefined' ? window.location.origin : '')
+  : (envBase || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8000'))
+const WS_URL = (API.startsWith('https://') ? API.replace(/^https/, 'wss') : API.replace(/^http/, 'ws')) + '/ws/events'
 
 export function useWebSocket(onEvent?: (e: WSEvent) => void) {
   const [connected, setConnected] = useState(false)
@@ -13,11 +16,19 @@ export function useWebSocket(onEvent?: (e: WSEvent) => void) {
   useEffect(() => {
     let ws: WebSocket
     let retryTimeout: ReturnType<typeof setTimeout>
+    let disposed = false
     function connect() {
+      if (disposed) return
       ws = new WebSocket(WS_URL)
       wsRef.current = ws
       ws.onopen = () => setConnected(true)
-      ws.onclose = () => { setConnected(false); retryTimeout = setTimeout(connect, 3000) }
+      ws.onclose = () => {
+        setConnected(false)
+        // Without the disposed guard, unmount → close → onclose → reconnect
+        // leaks a forever-reconnecting socket on every modal open/close,
+        // duplicating every WS-delivered log line.
+        if (!disposed) retryTimeout = setTimeout(connect, 3000)
+      }
       ws.onerror = () => ws.close()
       ws.onmessage = (e) => {
         try {
@@ -27,7 +38,7 @@ export function useWebSocket(onEvent?: (e: WSEvent) => void) {
       }
     }
     connect()
-    return () => { clearTimeout(retryTimeout); ws?.close() }
+    return () => { disposed = true; clearTimeout(retryTimeout); ws?.close() }
   }, [])
 
   return { connected }

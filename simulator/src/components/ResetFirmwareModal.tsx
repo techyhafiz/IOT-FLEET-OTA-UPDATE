@@ -1,21 +1,23 @@
 import React, { useState } from 'react'
 
-const FIRMWARE_VERSIONS = ['v1.0.0', 'v1.1.0', 'v1.2.0']
-
 interface Props {
   currentFirmware: string
+  allVersions: string[]
   onConfirm: (version: string) => void
   onClose: () => void
 }
 
-export function ResetFirmwareModal({ currentFirmware, onConfirm, onClose }: Props) {
+export function ResetFirmwareModal({ currentFirmware, allVersions, onConfirm, onClose }: Props) {
   const [selected, setSelected] = useState(currentFirmware)
   const [confirming, setConfirming] = useState(false)
 
   async function handleConfirm() {
     setConfirming(true)
-    await onConfirm(selected)
-    setConfirming(false)
+    try {
+      await onConfirm(selected)
+    } finally {
+      setConfirming(false)
+    }
   }
 
   return (
@@ -34,7 +36,7 @@ export function ResetFirmwareModal({ currentFirmware, onConfirm, onClose }: Prop
           <div>
             <div className="text-xs font-mono font-bold text-slate-500 mb-2 uppercase tracking-wider">Roll back to:</div>
             <div className="space-y-2">
-              {FIRMWARE_VERSIONS.map(v => (
+              {allVersions.map(v => (
                 <label key={v}
                   className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
                     selected === v
@@ -54,9 +56,6 @@ export function ResetFirmwareModal({ currentFirmware, onConfirm, onClose }: Prop
                   {v === currentFirmware && (
                     <span className="text-xs text-slate-400 font-mono font-medium">(current)</span>
                   )}
-                  {v === 'v1.2.0' && v !== currentFirmware && (
-                    <span className="text-xs text-cyan-700 font-mono font-bold">latest</span>
-                  )}
                 </label>
               ))}
             </div>
@@ -64,7 +63,7 @@ export function ResetFirmwareModal({ currentFirmware, onConfirm, onClose }: Prop
 
           <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl">
             <span className="text-amber-600 mt-0.5 text-sm">⚠</span>
-            <p className="text-xs font-mono text-amber-900 font-medium">Device will reboot automatically after reset.</p>
+            <p className="text-xs font-mono text-amber-900 font-medium">Device will download & flash this version on the next OTA poll (≤5s), then reboot.</p>
           </div>
         </div>
 

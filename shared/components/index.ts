@@ -1,3 +1,5 @@
 export { Esp32Board } from './Esp32Board'
 export { LedIndicator } from './LedIndicator'
 export { LcdScreen } from './LcdScreen'
+export { LedWiringDiagram, LcdWiringDiagram } from './WiringDiagrams'
+export type { Pin } from './WiringDiagrams'

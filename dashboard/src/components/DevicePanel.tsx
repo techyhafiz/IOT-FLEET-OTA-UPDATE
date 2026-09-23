@@ -1,11 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react'
-import type { Device, LogEntry } from '@shared/types'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
+import type { Device, LogEntry, WSEvent } from '@shared/types'
 import { Esp32Board } from '@shared/components/Esp32Board'
 import { LedIndicator } from '@shared/components/LedIndicator'
 import { LcdScreen } from '@shared/components/LcdScreen'
-import { api } from '../hooks/useWebSocket'
-
-const FIRMWARE_VERSIONS = ['v1.0.0', 'v1.1.0', 'v1.2.0']
+import { api, useWebSocket } from '../hooks/useWebSocket'
 
 interface Props {
   device: Device
@@ -13,37 +11,51 @@ interface Props {
   onOTA: (id: string, version: string) => Promise<void>
 }
 
-const STATIC_DATA: Record<string, { ip: string }> = {
-  'ESP-A1F3': { ip: '192.168.1.101' },
-  'ESP-B2C4': { ip: '192.168.1.102' },
-  'ESP-C9D1': { ip: '192.168.1.103' },
-}
-
 export function DevicePanel({ device, onClose, onOTA }: Props) {
   const [logs, setLogs] = useState<LogEntry[]>([])
+  const [fwList, setFwList] = useState<string[]>(['v1.0.0', 'v1.1.0', 'v1.2.0'])
   const logEndRef = useRef<HTMLDivElement>(null)
   const gpio = device.gpio ?? { D0: 0, D1: 0, D2: 0, D3: 0 }
   const lcd = device.lcd ?? { row1: '', row2: '' }
   const isUpdating = (device.ota_progress ?? 0) > 0
-  const availableFw = FIRMWARE_VERSIONS.filter(v => v !== device.firmware)
-  const staticData = STATIC_DATA[device.id] ?? { ip: '192.168.1.x' }
+  const availableFw = fwList
+    .filter(v => v !== device.firmware && !v.toLowerCase().includes('faulty'))
+  // Semantically newest version first (vX.Y.Z compare) — never "update" backwards
+  const sortedAvailable = availableFw.slice().sort((a, b) => {
+    const pa = a.match(/\d+/g)?.map(Number) ?? [0, 0, 0]
+    const pb = b.match(/\d+/g)?.map(Number) ?? [0, 0, 0]
+    for (let i = 0; i < 3; i++) if ((pb[i] ?? 0) !== (pa[i] ?? 0)) return (pb[i] ?? 0) - (pa[i] ?? 0)
+    return 0
+  })
+  const latestAvailable = sortedAvailable[0]
 
   useEffect(() => {
-    api.get(`/api/devices/${device.id}/logs`).then(setLogs)
+    api.get(`/api/devices/${device.id}/logs`).then(setLogs).catch(() => {})
+    api.get('/api/firmware/versions').then((v: string[]) =>
+      setFwList(v.filter(x => !x.toLowerCase().includes('faulty')))
+    ).catch(() => {})
   }, [device.id])
+
+  // Live log stream for THIS device over WebSocket
+  useWebSocket(useCallback((event: WSEvent) => {
+    if (event.type === 'device_log' && event.device_id === device.id) {
+      setLogs(prev => [...prev.slice(-199), event.payload as LogEntry])
+    }
+  }, [device.id]))
 
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [logs])
 
   async function handleOTA() {
-    const target = availableFw[availableFw.length - 1]
+    const target = latestAvailable
     if (!target) return
     await onOTA(device.id, target)
   }
 
   async function handleRollback(version: string) {
     await api.post('/api/ota/rollback', { device_id: device.id, version })
+    // Re-fetch so the "current" marker moves once the device completes the flash
   }
 
   const logColor = (level: string) => {
@@ -83,7 +95,7 @@ export function DevicePanel({ device, onClose, onOTA }: Props) {
                 </span>
               </div>
               <p className="text-xs font-mono text-slate-400 mt-0.5">
-                {staticData.ip} · {device.mac} · Group: {device.group}
+                {device.ip ?? '—'} · {device.mac} · Group: {device.group} · Uptime {Math.floor((device.uptime ?? 0) / 60)}m {Math.round((device.uptime ?? 0) % 60)}s
               </p>
             </div>
           </div>
@@ -97,6 +109,20 @@ export function DevicePanel({ device, onClose, onOTA }: Props) {
 
         {/* Modal Content — Wide and compact, no scrolling needed */}
         <div className="p-5 space-y-4">
+          {/* Update failed — device unreachable, server keeps retrying */}
+          {device.ota_state === 'failed' && (
+            <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-xs font-semibold text-red-700">
+              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+              Update failed — device offline. Retrying every 10s ({device.ota_pending}). Power it on in the simulator to complete.
+            </div>
+          )}
+          {/* Cross-template firmware — device not responding */}
+          {device.ota_state === 'incompatible' && (
+            <div className="bg-red-50 border border-red-300 rounded-xl px-3 py-2 text-xs font-semibold text-red-700">
+              ⚠ Device not compatible / no response — flashed firmware does not match its {device.template.toUpperCase()} hardware. Power-cycle the device in the simulator to recover.
+            </div>
+          )}
+
           {/* OTA Progress if active */}
           {isUpdating && (
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-1.5">
@@ -164,13 +190,13 @@ export function DevicePanel({ device, onClose, onOTA }: Props) {
                       className="flex items-center gap-1.5 px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-xs rounded-lg font-bold shadow-xs transition-colors cursor-pointer"
                     >
                       <span>⬆</span>
-                      <span>Update to {availableFw[availableFw.length - 1]}</span>
+                      <span>Update to {latestAvailable}</span>
                     </button>
                   )}
                 </div>
 
                 <div className="space-y-0 text-xs">
-                  {FIRMWARE_VERSIONS.map(v => (
+                  {fwList.map(v => (
                     <div key={v} className="flex items-center justify-between py-1.5 border-t border-slate-200/80 first:border-0">
                       <span className={`font-mono ${v === device.firmware ? 'text-slate-900 font-bold' : 'text-slate-500'}`}>
                         {v}

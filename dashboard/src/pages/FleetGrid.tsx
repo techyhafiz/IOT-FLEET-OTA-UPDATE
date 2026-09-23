@@ -16,40 +16,13 @@ interface Props {
 
 const PIE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
 
-interface TelemetryInfo {
-  ip: string
-  rssi: number
-  uptime: string
-  lastHeartbeat: string
-  temp: string
-  heap: string
-}
-
-const DEVICE_STATIC_DATA: Record<string, TelemetryInfo> = {
-  'ESP-A1F3': {
-    ip: '192.168.1.101',
-    rssi: -58,
-    uptime: '2d 14h',
-    lastHeartbeat: '10:33:50 PM',
-    temp: '32 °C',
-    heap: '180 KB',
-  },
-  'ESP-B2C4': {
-    ip: '192.168.1.102',
-    rssi: -64,
-    uptime: '5d 3h',
-    lastHeartbeat: '10:33:52 PM',
-    temp: '34 °C',
-    heap: '212 KB',
-  },
-  'ESP-C9D1': {
-    ip: '192.168.1.103',
-    rssi: -72,
-    uptime: '1d 8h',
-    lastHeartbeat: '10:33:48 PM',
-    temp: '31 °C',
-    heap: '196 KB',
-  },
+function fmtUptime(seconds: number): string {
+  const d = Math.floor(seconds / 86400)
+  const h = Math.floor((seconds % 86400) / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  if (d > 0) return `${d}d ${h}h`
+  if (h > 0) return `${h}h ${m}m`
+  return `${m}m ${seconds % 60}s`
 }
 
 export function FleetGrid({
@@ -64,10 +37,37 @@ export function FleetGrid({
   onRefresh,
 }: Props) {
   const [searchQuery, setSearchQuery] = useState('')
+  const [floorPush, setFloorPush] = useState<string | null>(null)
+  const [pushBusy, setPushBusy] = useState(false)
+  const [pushNote, setPushNote] = useState<string | null>(null)
+
+  // Floor (group) list derived from live devices
+  const floorNames = useMemo(
+    () => Array.from(new Set(devices.map(d => d.group))).sort(),
+    [devices]
+  )
+
+  async function handleFloorPush() {
+    if (!floorPush) return
+    setPushBusy(true)
+    setPushNote(null)
+    try {
+      const apiMod = await import('../hooks/useWebSocket')
+      const res = await apiMod.api.post('/api/ota/group', { group: floorPush, version: firmware[0]?.version })
+      setPushNote(`Pushed ${firmware[0]?.version} → ${floorPush} (${(res as { pushed?: string[] }).pushed?.length ?? 0} devices)`)
+      setTimeout(() => setPushNote(null), 4000)
+    } catch {
+      setPushNote('Push failed')
+    } finally {
+      setPushBusy(false)
+    }
+  }
 
   const total = devices.length
   const onlineCount = devices.filter(d => d.online).length
   const latestFw = firmware[0]?.version || 'v1.3.0'
+  const adopted = devices.filter(d => d.firmware === latestFw).length
+  const adoptionPct = total > 0 ? Math.round((adopted / total) * 100) : 0
 
   // Version counts for the Pie / Donut Chart
   const versionCounts: Record<string, number> = {}
@@ -77,15 +77,17 @@ export function FleetGrid({
   const versionEntries = Object.entries(versionCounts)
   let cumulativePercent = 0
 
-  // Filter devices based on search query
+  // Filter devices based on search query — searches live fields only
   const filteredDevices = useMemo(() => {
     if (!searchQuery.trim()) return devices
     const q = searchQuery.toLowerCase()
     return devices.filter(
       d =>
         d.id.toLowerCase().includes(q) ||
-        (DEVICE_STATIC_DATA[d.id]?.ip || '').includes(q) ||
-        d.firmware.toLowerCase().includes(q)
+        (d.ip || '').includes(q) ||
+        (d.name || '').toLowerCase().includes(q) ||
+        d.firmware.toLowerCase().includes(q) ||
+        d.group.toLowerCase().includes(q)
     )
   }, [devices, searchQuery])
 
@@ -123,7 +125,7 @@ export function FleetGrid({
             </div>
             <span className="text-[10px] text-emerald-700 font-medium flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-              100% Heartbeat
+              {total > 0 ? Math.round((onlineCount / total) * 100) : 0}% Heartbeat
             </span>
           </div>
           <div className="w-8 h-8 rounded-full bg-emerald-50 border border-emerald-200/80 text-emerald-600 flex items-center justify-center shadow-2xs">
@@ -141,8 +143,12 @@ export function FleetGrid({
             </span>
             <div className="text-xl font-sans font-bold text-slate-900 leading-tight">{latestFw}</div>
             <div className="mt-0.5">
-              <span className="text-[9px] font-medium text-amber-800 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200/80">
-                0 / 3 Adopted (0%)
+              <span className={`text-[9px] font-medium px-1.5 py-0.2 rounded border ${
+                adoptionPct === 100
+                  ? 'text-emerald-800 bg-emerald-50 border-emerald-200'
+                  : 'text-amber-800 bg-amber-50 border-amber-200/80'
+              }`}>
+                {adopted} / {total} Adopted ({adoptionPct}%)
               </span>
             </div>
           </div>
@@ -155,7 +161,7 @@ export function FleetGrid({
 
         {/* Card 4: Firmware Breakdown */}
         <div className="bg-white border border-slate-200/90 rounded-xl px-2.5 py-1.5 shadow-2xs flex items-center gap-2.5">
-          {/* Donut SVG with 3 Devices in Center */}
+          {/* Donut SVG with Devices in Center */}
           <div className="relative w-12 h-12 shrink-0 flex items-center justify-center">
             <svg viewBox="0 0 42 42" className="w-12 h-12 transform -rotate-90">
               <circle
@@ -281,6 +287,30 @@ export function FleetGrid({
             <span>Refresh</span>
           </button>
 
+          {/* Floor-wise push */}
+          <div className="flex items-center gap-1.5">
+            <select
+              value={floorPush ?? ''}
+              onChange={e => setFloorPush(e.target.value || null)}
+              className="px-2 py-1 text-xs bg-slate-50/70 border border-slate-200 rounded-xl text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-sans"
+              title="Push the target release to one floor"
+            >
+              <option value="">Floor…</option>
+              {floorNames.map(f => (
+                <option key={f} value={f}>{f} ({devices.filter(d => d.group === f).length})</option>
+              ))}
+            </select>
+            <button
+              onClick={handleFloorPush}
+              disabled={!floorPush || pushBusy}
+              className="flex items-center gap-1 px-2.5 py-1 text-xs font-sans font-medium text-emerald-700 bg-white hover:bg-emerald-50 border border-emerald-200 rounded-xl transition-all cursor-pointer shadow-2xs disabled:opacity-40"
+              title={`Push ${firmware[0]?.version} to every device on the selected floor`}
+            >
+              <span>⇪</span>
+              <span>Push Floor</span>
+            </button>
+          </div>
+
           {/* Primary Action: Update Fleet Firmware */}
           <button
             onClick={() => onOpenUpdateModal()}
@@ -292,20 +322,19 @@ export function FleetGrid({
         </div>
       </div>
 
-      {/* ─── ROW 3: 3 DEVICE CARDS ─────────────────────────────────────────────── */}
+      {/* Floor-push confirmation */}
+      {pushNote && (
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-3 py-1.5 text-xs font-semibold animate-fade-in">
+          {pushNote}
+        </div>
+      )}
+
+      {/* ─── ROW 3: DEVICE CARDS ───────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredDevices.map(device => {
           const isSelected = selectedIds.has(device.id)
           const isUpdating = (device.ota_progress ?? 0) > 0 && device.ota_progress !== null
           const isOffline = !device.online
-          const staticData = DEVICE_STATIC_DATA[device.id] || {
-            ip: '192.168.1.104',
-            rssi: -65,
-            uptime: '2d 4h',
-            lastHeartbeat: '10:33:45 PM',
-            temp: '32 °C',
-            heap: '190 KB',
-          }
           const needsUpdate = device.firmware !== latestFw
 
           return (
@@ -330,15 +359,12 @@ export function FleetGrid({
                   />
                   <div>
                     <p className="font-bold text-slate-900 text-sm leading-tight tracking-tight">{device.id}</p>
-                    <p className="text-[10px] font-mono text-slate-400 leading-tight mt-0.5">{staticData.ip}</p>
+                    <p className="text-[10px] font-mono text-slate-400 leading-tight mt-0.5">{device.ip ?? '—'}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-md font-mono text-[9px] text-slate-500 bg-slate-100 border border-slate-200">
-                    <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
-                    </svg>
-                    {staticData.rssi}
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-md font-mono text-[9px] text-cyan-700 bg-cyan-50 border border-cyan-200" title="Device group">
+                    {device.group}
                   </span>
                   {isUpdating ? (
                     <span className="inline-flex items-center gap-1 px-2 py-0.2 rounded-full text-[9px] font-semibold bg-amber-50 text-amber-700 border border-amber-300">
@@ -359,14 +385,14 @@ export function FleetGrid({
                 </div>
               </div>
 
-              {/* ── ESP32 Board Preview ──────────────────────────────────── */}
+              {/* ── ESP32 Board Preview ──────────────────────────────── */}
+              {/* Pin states intentionally hidden on grid cards — detail views only */}
               <div className="mx-3 mb-1.5 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center py-1.5">
                 <Esp32Board
                   size="xs"
                   template={device.template}
                   isUpdating={isUpdating}
                   isOffline={isOffline}
-                  pins={device.gpio ?? {}}
                 />
               </div>
 
@@ -386,7 +412,22 @@ export function FleetGrid({
                 </div>
               )}
 
-              {/* ── Telemetry Grid ───────────────────────────────────────── */}
+              {/* Update failed — device unreachable, server keeps retrying */}
+              {device.ota_state === 'failed' && (
+                <div className="mx-3 mb-1.5 flex items-center gap-1.5 px-2 py-1 bg-red-50 border border-red-200 rounded-lg text-[10px] font-semibold text-red-700">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />
+                  Update failed — retrying every 10s ({device.ota_pending})
+                </div>
+              )}
+
+              {/* Cross-template firmware flashed — device bricked until power cycle */}
+              {device.ota_state === 'incompatible' && (
+                <div className="mx-3 mb-1.5 px-2 py-1 bg-red-50 border border-red-300 rounded-lg text-[10px] font-semibold text-red-700">
+                  ⚠ Device not compatible / no response — power-cycle it in the simulator to recover
+                </div>
+              )}
+
+              {/* ── Telemetry Grid (all LIVE from device heartbeats) ──── */}
               <div className="px-3.5 pb-1.5 flex-1">
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1">
                   <div className="flex flex-col">
@@ -401,19 +442,15 @@ export function FleetGrid({
                   </div>
                   <div className="flex flex-col">
                     <span className="text-[9px] font-medium text-slate-400 uppercase tracking-wide">Uptime</span>
-                    <span className="font-mono text-xs text-slate-700 leading-tight">{staticData.uptime}</span>
+                    <span className="font-mono text-xs text-slate-700 leading-tight">{fmtUptime(device.uptime ?? 0)}</span>
                   </div>
                   <div className="flex flex-col">
                     <span className="text-[9px] font-medium text-slate-400 uppercase tracking-wide">Last Seen</span>
-                    <span className="font-mono text-xs text-slate-700 leading-tight">{staticData.lastHeartbeat}</span>
+                    <span className="font-mono text-xs text-slate-700 leading-tight">{device.last_heartbeat ?? '—'}</span>
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-[9px] font-medium text-slate-400 uppercase tracking-wide">Temperature</span>
-                    <span className="font-mono text-xs text-slate-700 leading-tight">{staticData.temp}</span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-[9px] font-medium text-slate-400 uppercase tracking-wide">Free Heap</span>
-                    <span className="font-mono text-xs text-slate-700 leading-tight">{staticData.heap}</span>
+                    <span className="text-[9px] font-medium text-slate-400 uppercase tracking-wide">Hardware</span>
+                    <span className="font-mono text-xs text-slate-700 leading-tight">{device.template === 'lcd' ? '16×2 LCD' : 'LED ×4'}</span>
                   </div>
                 </div>
 
@@ -427,7 +464,7 @@ export function FleetGrid({
                 )}
               </div>
 
-              {/* ── Card Footer: Action Buttons ──────────────────────────── */}
+              {/* ── Card Footer: Action Buttons ──────────────────────── */}
               <div className="px-3 pb-2 pt-1 border-t border-slate-100 grid grid-cols-3 gap-1.5">
                 <button
                   onClick={() => onOpenDevice(device)}

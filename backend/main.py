@@ -1,7 +1,7 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel
 from typing import Optional, Any
 import asyncio
@@ -27,7 +27,10 @@ app.add_middleware(
 
 devices: dict[str, dict] = {}
 logs: dict[str, list] = {}
-groups: list[str] = ["floor-1", "floor-2", "rooftop"]
+groups: list[str] = ["floor-1", "floor-2", "floor-3", "rooftop"]
+
+# Last state broadcast per device — used to suppress redundant WS traffic
+_last_broadcast: dict[str, str] = {}
 
 FIRMWARE_VERSIONS = [
     {
@@ -71,6 +74,318 @@ FIRMWARE_VERSIONS = [
         "has_source": True,
     },
 ]
+
+# ─── Predefined firmware library ────────────────────────────────────────────
+
+# Seconds between OTA retries while a device is powered off / unreachable
+OTA_RETRY_S = 10
+
+OTA_BASE_INCLUDES = '''#include <WiFi.h>
+#include <HTTPClient.h>
+#include <HTTPUpdate.h>
+
+// OTA platform connection — every predefined build polls for updates
+const char* ssid       = "Fleet_IoT_Mesh";
+const char* password   = "SecretPass123";
+const char* ota_host   = "192.168.1.10";   // PC-A gateway
+const int   ota_port   = 8000;
+const char* device_id  = ESP_DEVICE_ID;
+
+void checkOTA() {
+  String url = "/ota/update/" + String(device_id);
+  WiFiClient client;
+  t_httpUpdate_return ret = httpUpdate.update(client, ota_host, ota_port, url);
+  if (ret == HTTP_UPDATE_OK) {
+    ESP.restart();
+  }
+}'''
+
+PREDEFINED_FIRMWARE: dict[str, dict] = {
+    "LED_D0": {
+        "id": "LED_D0", "template": "led", "targets": ["D0"],
+        "name": "LED ×1 — D0 HIGH",
+        "desc": "Turns LED on D0 HIGH (all other pins LOW).",
+        "version": "v2.0.0",
+        "gpio": {"D0": 1, "D1": 0, "D2": 0, "D3": 0},
+        "lcd": None, "dynamic": None,
+        "code": OTA_BASE_INCLUDES + '''
+
+const int PIN_D0 = 16;
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(PIN_D0, OUTPUT);
+  digitalWrite(PIN_D0, HIGH);   // D0 → LED 1 ON
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) { delay(200); }
+  Serial.println("[FIRMWARE LED_D0] D0 HIGH, OTA platform linked.");
+}
+
+void loop() {
+  digitalWrite(PIN_D0, HIGH);   // hold D0 HIGH
+  delay(1000);
+  checkOTA();                    // poll for updates
+}''',
+    },
+    "LED_D1": {
+        "id": "LED_D1", "template": "led", "targets": ["D1"],
+        "name": "LED ×1 — D1 HIGH",
+        "desc": "Turns LED on D1 HIGH (all other pins LOW).",
+        "version": "v2.1.0",
+        "gpio": {"D0": 0, "D1": 1, "D2": 0, "D3": 0},
+        "lcd": None, "dynamic": None,
+        "code": OTA_BASE_INCLUDES + '''
+
+const int PIN_D1 = 17;
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(PIN_D1, OUTPUT);
+  digitalWrite(PIN_D1, HIGH);   // D1 → LED 2 ON
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) { delay(200); }
+  Serial.println("[FIRMWARE LED_D1] D1 HIGH, OTA platform linked.");
+}
+
+void loop() {
+  digitalWrite(PIN_D1, HIGH);   // hold D1 HIGH
+  delay(1000);
+  checkOTA();
+}''',
+    },
+    "LED_D2": {
+        "id": "LED_D2", "template": "led", "targets": ["D2"],
+        "name": "LED ×1 — D2 HIGH",
+        "desc": "Turns LED on D2 HIGH (all other pins LOW).",
+        "version": "v2.2.0",
+        "gpio": {"D0": 0, "D1": 0, "D2": 1, "D3": 0},
+        "lcd": None, "dynamic": None,
+        "code": OTA_BASE_INCLUDES + '''
+
+const int PIN_D2 = 18;
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(PIN_D2, OUTPUT);
+  digitalWrite(PIN_D2, HIGH);   // D2 → LED 3 ON
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) { delay(200); }
+  Serial.println("[FIRMWARE LED_D2] D2 HIGH, OTA platform linked.");
+}
+
+void loop() {
+  digitalWrite(PIN_D2, HIGH);   // hold D2 HIGH
+  delay(1000);
+  checkOTA();
+}''',
+    },
+    "LED_D3": {
+        "id": "LED_D3", "template": "led", "targets": ["D3"],
+        "name": "LED ×1 — D3 HIGH",
+        "desc": "Turns LED on D3 HIGH (all other pins LOW).",
+        "version": "v2.3.0",
+        "gpio": {"D0": 0, "D1": 0, "D2": 0, "D3": 1},
+        "lcd": None, "dynamic": None,
+        "code": OTA_BASE_INCLUDES + '''
+
+const int PIN_D3 = 19;
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(PIN_D3, OUTPUT);
+  digitalWrite(PIN_D3, HIGH);   // D3 → LED 4 ON
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) { delay(200); }
+  Serial.println("[FIRMWARE LED_D3] D3 HIGH, OTA platform linked.");
+}
+
+void loop() {
+  digitalWrite(PIN_D3, HIGH);   // hold D3 HIGH
+  delay(1000);
+  checkOTA();
+}''',
+    },
+    "LED_ALL_OFF": {
+        "id": "LED_ALL_OFF", "template": "led", "targets": [],
+        "name": "LED — ALL OFF (base)",
+        "desc": "All LED pins LOW. Pure OTA-platform connection build.",
+        "version": "v1.9.0",
+        "gpio": {"D0": 0, "D1": 0, "D2": 0, "D3": 0},
+        "lcd": None, "dynamic": None,
+        "code": OTA_BASE_INCLUDES + '''
+
+const int PINS[4] = {16, 17, 18, 19};  // D0, D1, D2, D3
+
+void setup() {
+  Serial.begin(115200);
+  for (int i = 0; i < 4; i++) {
+    pinMode(PINS[i], OUTPUT);
+    digitalWrite(PINS[i], LOW);   // all LEDs OFF
+  }
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) { delay(200); }
+  Serial.println("[FIRMWARE BASE] All pins LOW, OTA platform linked.");
+}
+
+void loop() {
+  delay(1000);
+  checkOTA();
+}''',
+    },
+    "LCD_BLANK": {
+        "id": "LCD_BLANK", "template": "lcd", "targets": [],
+        "name": "LCD — Blank (base)",
+        "desc": "Backlight on, no text yet. Pure OTA-platform connection build.",
+        "version": "v3.8.0",
+        "gpio": {"D0": 0, "D1": 0, "D2": 0, "D3": 0},
+        "lcd": {"row1": "", "row2": ""}, "dynamic": None,
+        "code": OTA_BASE_INCLUDES + '''
+
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin(21, 22);          // SDA=21, SCL=22
+  lcd.init();
+  lcd.backlight();             // screen powered, no text yet
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) { delay(200); }
+  Serial.println("[FIRMWARE LCD_BASE] Backlight on, OTA platform linked.");
+}
+
+void loop() {
+  delay(1000);
+  checkOTA();
+}''',
+    },
+    "LCD_GREETING": {
+        "id": "LCD_GREETING", "template": "lcd", "targets": [],
+        "name": "LCD — Greeting",
+        "desc": 'Row 1: "Hello from PC-A" · Row 2: "OTA platform OK".',
+        "version": "v3.0.0",
+        "gpio": {"D0": 0, "D1": 0, "D2": 0, "D3": 0},
+        "lcd": {"row1": "Hello from PC-A", "row2": "OTA platform OK"},
+        "dynamic": None,
+        "code": OTA_BASE_INCLUDES + '''
+
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+LiquidCrystal_I2C lcd(0x27, 16, 2);  // I2C addr 0x27, 16 cols, 2 rows
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin(21, 22);          // SDA=21, SCL=22
+  lcd.init();
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+  lcd.print("Hello from PC-A");
+  lcd.setCursor(0, 1);
+  lcd.print("OTA platform OK");
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) { delay(200); }
+  Serial.println("[FIRMWARE LCD_GREETING] LCD ready, OTA linked.");
+}
+
+void loop() {
+  delay(1000);
+  checkOTA();
+}''',
+    },
+    "LCD_IP": {
+        "id": "LCD_IP", "template": "lcd", "targets": [],
+        "name": "LCD — IP & Signal",
+        "desc": "Row 1: node IP address · Row 2: live RSSI signal.",
+        "version": "v3.1.0",
+        "gpio": {"D0": 0, "D1": 0, "D2": 0, "D3": 0},
+        "lcd": None, "dynamic": "ip",
+        "code": OTA_BASE_INCLUDES + '''
+
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin(21, 22);
+  lcd.init();
+  lcd.backlight();
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) { delay(200); }
+  lcd.setCursor(0, 0);
+  lcd.print(WiFi.localIP());
+  lcd.setCursor(0, 1);
+  lcd.print("RSSI:");
+  Serial.println("[FIRMWARE LCD_IP] Network info build.");
+}
+
+void loop() {
+  lcd.setCursor(6, 1);
+  lcd.print(WiFi.RSSI());
+  lcd.print("dBm     ");
+  delay(1000);
+  checkOTA();
+}''',
+    },
+    "LCD_UPTIME": {
+        "id": "LCD_UPTIME", "template": "lcd", "targets": [],
+        "name": "LCD — Uptime Counter",
+        "desc": "Row 1: firmware tag · Row 2: live seconds-uptime counter.",
+        "version": "v3.2.0",
+        "gpio": {"D0": 0, "D1": 0, "D2": 0, "D3": 0},
+        "lcd": None, "dynamic": "uptime",
+        "code": OTA_BASE_INCLUDES + '''
+
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin(21, 22);
+  lcd.init();
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+  lcd.print("UP-TIME v3.2.0");
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) { delay(200); }
+  Serial.println("[FIRMWARE LCD_UPTIME] Counter build.");
+}
+
+void loop() {
+  lcd.setCursor(0, 1);
+  lcd.print("Up: ");
+  lcd.print(millis() / 1000);
+  lcd.print(" sec      ");
+  delay(1000);
+  checkOTA();
+}''',
+    },
+}
+
+def register_predefined_firmware():
+    """Index presets into the firmware registry + code store at startup."""
+    def vkey(v):
+        m = re.match(r"v(\d+)\.(\d+)\.(\d+)", v)
+        return tuple(map(int, m.groups())) if m else (0, 0, 0)
+    for p in sorted(PREDEFINED_FIRMWARE.values(), key=lambda p: vkey(p["version"]), reverse=True):
+        if not any(fw["version"] == p["version"] for fw in FIRMWARE_VERSIONS):
+            FIRMWARE_VERSIONS.insert(0, {
+                "version": p["version"],
+                "size": len(p["code"].encode("utf-8")),
+                "changelog": f"[Preset · {p['name']}] {p['desc']}",
+                "date": datetime.now().strftime("%Y-%m-%d"),
+                "sha256": hashlib.sha256(p["code"].encode("utf-8")).hexdigest(),
+                "is_faulty": False,
+                "filename": f"{p['id'].lower()}.cpp",
+                "has_source": True,
+            })
+        FIRMWARE_CODE[p["version"]] = p["code"]
 
 FIRMWARE_CODE = {
     "v1.0.0": """#include <WiFi.h>
@@ -192,6 +507,8 @@ void loop() {
 """,
 }
 
+register_predefined_firmware()
+
 # ─── WebSocket connection manager ─────────────────────────────────────────────
 
 class ConnectionManager:
@@ -229,6 +546,9 @@ class RegisterDevice(BaseModel):
     template: str  # 'led' | 'lcd'
     name: Optional[str] = None
     heartbeat_rate: Optional[int] = 5
+    # External hardware chosen at add time (sim mode): how many LEDs are
+    # physically wired (3 → D0..D2), or null for the LCD board.
+    led_count: Optional[int] = None
 
 class DeviceUpdate(BaseModel):
     name: Optional[str] = None
@@ -291,6 +611,8 @@ def make_device(data: RegisterDevice) -> dict:
         "ESP-A1F3": "192.168.1.101",
         "ESP-B2C4": "192.168.1.102",
         "ESP-C9D1": "192.168.1.103",
+        "ESP-D4E2": "192.168.1.104",
+        "ESP-E5F3": "192.168.1.105",
     }
     ip = known_ips.get(data.id, f"192.168.1.{100 + idx}")
     return {
@@ -304,28 +626,122 @@ def make_device(data: RegisterDevice) -> dict:
         "uptime": 0,
         "heartbeat_rate": getattr(data, "heartbeat_rate", None) or 5,
         "gpio": {"D0": 0, "D1": 0, "D2": 0, "D3": 0},
-        "lcd": {"row1": "Hello World!", "row2": "Sys: RUNNING"} if data.template == "lcd" else None,
-        "temp": "32.0 °C",
-        "heap": "214 KB",
-        "rssi": -58,
+        "lcd": {"row1": "", "row2": ""} if data.template == "lcd" else None,
+        "fw_dynamic": None,
+        "ota_state": None,
         "ip": ip,
-        "last_heartbeat": datetime.utcnow().strftime("%I:%M:%S %p"),
+        "last_heartbeat": datetime.now().strftime("%I:%M:%S %p"),
         "ota_pending": None,
         "ota_progress": None,
         "config": {},
-        "registered_at": datetime.utcnow().isoformat(),
+        "registered_at": datetime.now().isoformat(),
     }
+    # The registered firmware immediately drives the hardware — a device
+    # added with LED_D1 firmware shows D1 HIGH from first boot; base builds
+    # (v1.9.0 LED / v3.8.0 LCD) boot with everything OFF / blank.
+    b = behavior_for_version(data.firmware)
+    device["gpio"] = dict(b["gpio"])
+    device["lcd"] = dict(b["lcd"]) if b["lcd"] else (
+        {"row1": "", "row2": ""} if b["template"] == "lcd" else None
+    )
+    device["fw_dynamic"] = b["dynamic"]
+    device["template"] = b["template"]
+    # External hardware wired at add time — clamped to 1..4 so GPIO mapping
+    # stays valid. Devices added with a 2-LED harness only show 3 physical
+    # LEDs (D0..D2) — extra pins are unwired.
+    if data.led_count is not None:
+        device["led_count"] = max(1, min(4, data.led_count))
+    return device
 
 def device_count_for_version(version: str) -> int:
     return sum(1 for d in devices.values() if d["firmware"] == version)
+
+# ─── Firmware behaviour engine ────────────────────────────────────────────────
+# Maps a firmware's C source onto the simulated hardware: which GPIOs it drives
+# and what it renders on the LCD. Presets carry explicit behaviour; hand-edited
+# code is analysed so custom sketches still drive the virtual device.
+
+PIN_MAP = {"D0": 16, "D1": 17, "D2": 18, "D3": 19}
+GPIO_NUM_TO_LOGICAL = {v: k for k, v in PIN_MAP.items()}
+
+def analyze_firmware(code: str) -> dict:
+    """Extract {gpio, lcd, dynamic, template} from ESP32 Arduino C source."""
+    gpio = {"D0": 0, "D1": 0, "D2": 0, "D3": 0}
+    lcd = None
+    dynamic = None
+
+    # pinMode(PIN Dx / N, OUTPUT) — pins this sketch drives
+    driven: set[str] = set()
+    for logical, num in PIN_MAP.items():
+        if re.search(rf"pinMode\s*\(\s*(?:PIN_{logical}|{num})\b", code):
+            driven.add(logical)
+
+    # digitalWrite(PIN Dx / N, HIGH|LOW)
+    for logical, num in PIN_MAP.items():
+        m = re.search(
+            rf"digitalWrite\s*\(\s*(?:PIN_{logical}|{num})\b\s*,\s*(HIGH|LOW)\s*\)",
+            code,
+        )
+        if m and logical in driven:
+            gpio[logical] = 1 if m.group(1) == "HIGH" else 0
+        elif logical in driven:
+            gpio[logical] = 0
+
+    # LiquidCrystal usage → LCD template
+    uses_lcd = re.search(r"LiquidCrystal_I2C|lcd\.init\s*\(\s*\)", code) is not None
+
+    # lcd.setCursor(row) followed by lcd.print("text") — rows 0/1
+    rows: dict[int, str] = {}
+    for m in re.finditer(
+        r"lcd\.setCursor\s*\(\s*\d+\s*,\s*([01])\s*\)\s*;?\s*(?:/[*/].*?\n)?\s*"
+        r"lcd\.print\s*\(\s*\"([^\"]*)\"\s*\)",
+        code,
+    ):
+        row = int(m.group(1))
+        text = m.group(2)[:16]
+        if text and not re.match(r"^RSSI:$|^Up: $", text):
+            rows[row] = text
+    if uses_lcd:
+        lcd = {
+            "row1": rows.get(0, ""),
+            "row2": rows.get(1, ""),
+        }
+        if re.search(r"WiFi\.localIP\s*\(\s*\)", code) and lcd["row1"] == "":
+            dynamic = "ip"
+        if re.search(r"millis\s*\(\s*\)\s*/\s*1000", code):
+            dynamic = "uptime"
+
+    template = "lcd" if uses_lcd else "led"
+    return {"gpio": gpio, "lcd": lcd, "dynamic": dynamic, "template": template}
+
+def behavior_for_version(version: str) -> dict:
+    """Behaviour of a firmware. Latest-uploaded code wins (so hand-edited
+    presets behave as edited), then explicit preset behaviour, then analysis."""
+    code = FIRMWARE_CODE.get(version)
+    if code:
+        return analyze_firmware(code)
+    for p in PREDEFINED_FIRMWARE.values():
+        if p["version"] == version:
+            return {
+                "gpio": dict(p["gpio"]),
+                "lcd": dict(p["lcd"]) if p["lcd"] else None,
+                "dynamic": p["dynamic"],
+                "template": p["template"],
+            }
+    return {"gpio": {"D0": 0, "D1": 0, "D2": 0, "D3": 0}, "lcd": None,
+            "dynamic": None, "template": "led"}
 
 # ─── Seed demo devices ────────────────────────────────────────────────────────
 
 def seed_demo_devices():
     demo = [
-        RegisterDevice(id="ESP-A1F3", mac="A1:F3:00:11:22:33", firmware="v1.1.0", group="floor-1", template="led"),
-        RegisterDevice(id="ESP-B2C4", mac="B2:C4:00:11:22:33", firmware="v1.2.0", group="floor-1", template="lcd"),
-        RegisterDevice(id="ESP-C9D1", mac="C9:D1:00:11:22:33", firmware="v1.0.0", group="floor-2", template="led"),
+        # Demo fleet: 5 devices across floor-1/2/3, all on base OTA-platform
+        # builds (everything OFF / blank). Firmware arrives via OTA pushes.
+        RegisterDevice(id="ESP-A1F3", mac="A1:F3:00:11:22:33", firmware="v1.9.0", group="floor-1", template="led"),
+        RegisterDevice(id="ESP-B2C4", mac="B2:C4:00:11:22:33", firmware="v3.8.0", group="floor-1", template="lcd"),
+        RegisterDevice(id="ESP-C9D1", mac="C9:D1:00:11:22:33", firmware="v1.9.0", group="floor-2", template="led"),
+        RegisterDevice(id="ESP-D4E2", mac="D4:E2:00:11:22:33", firmware="v3.8.0", group="floor-2", template="lcd"),
+        RegisterDevice(id="ESP-E5F3", mac="E5:F3:00:11:22:33", firmware="v1.9.0", group="floor-3", template="led"),
     ]
     for d in demo:
         devices[d.id] = make_device(d)
@@ -335,13 +751,10 @@ seed_demo_devices()
 
 # ─── Routes ───────────────────────────────────────────────────────────────────
 
-@app.get("/")
-async def root():
-    return {"status": "ok", "service": "IoT OTA Backend", "devices": len(devices)}
-
 @app.get("/health")
+@app.get("/api/health")
 async def health():
-    return {"status": "healthy", "devices": len(devices)}
+    return {"status": "healthy", "service": "IoT OTA Backend", "devices": len(devices)}
 
 # Device registry
 @app.post("/api/devices/register")
@@ -352,6 +765,32 @@ async def register_device(data: RegisterDevice):
         logs[data.id] = []
     await manager.broadcast("device_registered", data.id, device)
     return device
+
+@app.get("/api/firmware/versions")
+async def list_firmware_versions():
+    """Lightweight list of known firmware versions for device-side pickers."""
+    return [fw["version"] for fw in FIRMWARE_VERSIONS]
+
+@app.get("/api/firmware/presets")
+async def list_presets():
+    """Predefined firmware library — variations for LED (D0–D3) and LCD,
+    plus the base OTA-only builds. Code included so the dashboard can offer
+    viewing and hand-editing before upload."""
+    result = []
+    for p in PREDEFINED_FIRMWARE.values():
+        result.append({
+            "id": p["id"],
+            "template": p["template"],
+            "name": p["name"],
+            "desc": p["desc"],
+            "version": p["version"],
+            "targets": p["targets"],
+            "gpio": p["gpio"],
+            "lcd": p["lcd"],
+            "dynamic": p["dynamic"],
+            "code": p["code"],
+        })
+    return result
 
 @app.delete("/api/devices/{device_id}")
 async def delete_device(device_id: str):
@@ -379,6 +818,33 @@ async def update_status(device_id: str, status: DeviceStatus):
     d = devices[device_id]
     if status.online is not None:
         d["online"] = status.online
+    # Power-cycle recovery: a device bricked by cross-template firmware comes
+    # back on its base build (template is permanent; the bad image is gone).
+    if d.get("ota_state") == "incompatible" and status.online:
+        base = "v3.8.0" if d["template"] == "lcd" else "v1.9.0"
+        d["ota_state"] = None
+        d["ota_pending"] = None
+        d["ota_progress"] = None
+        d["firmware"] = base
+        rb = behavior_for_version(base)
+        d["gpio"] = dict(rb["gpio"])
+        d["lcd"] = dict(rb["lcd"]) if rb["lcd"] else (
+            {"row1": "", "row2": ""} if d["template"] == "lcd" else None
+        )
+        d["fw_dynamic"] = rb["dynamic"]
+        log_entry = {
+            "timestamp": datetime.now().strftime("%I:%M:%S %p"),
+            "level": "INFO",
+            "msg": f"Power cycle OK — recovered to base build {base}",
+            "device_id": device_id,
+        }
+        logs[device_id].append(log_entry)
+        if len(logs[device_id]) > 100:
+            logs[device_id] = logs[device_id][-100:]
+        await manager.broadcast("device_log", device_id, log_entry)
+        _last_broadcast[device_id] = json.dumps(d, sort_keys=True, default=str)
+        await manager.broadcast("device_status", device_id, d)
+        return d
     if status.uptime is not None:
         d["uptime"] = status.uptime
     if status.gpio is not None:
@@ -393,15 +859,122 @@ async def update_status(device_id: str, status: DeviceStatus):
         d["lcd"]["row2"] = status.lcd_row2
     if status.ota_progress is not None:
         d["ota_progress"] = status.ota_progress
+    if status.temp is not None:
+        d["temp"] = status.temp
+    if status.heap is not None:
+        d["heap"] = status.heap
+    if status.rssi is not None:
+        d["rssi"] = status.rssi
+    if status.ip is not None:
+        d["ip"] = status.ip
+    # Every status post IS a heartbeat
+    d["last_heartbeat"] = datetime.utcnow().strftime("%I:%M:%S %p")
+
     if status.state == "complete":
-        d["ota_pending"] = None
-        d["ota_progress"] = None
-        if status.firmware:
-            d["firmware"] = status.firmware
-        await manager.broadcast("ota_complete", device_id, {"firmware": d["firmware"]})
-    elif status.ota_progress is not None:
-        await manager.broadcast("ota_progress", device_id, {"progress": status.ota_progress})
-    else:
+        target = d.get("ota_pending")
+        # A device can only "complete" the update it was offered.
+        if target and status.firmware != target:
+            # Reject bogus completion reports; treat as a normal heartbeat.
+            status.state = None
+        if status.state == "complete":
+            d["ota_pending"] = None
+            d["ota_progress"] = None
+            d["ota_state"] = None
+            if status.firmware:
+                d["firmware"] = status.firmware
+                # Template is permanent per device (project rule). Flashing a
+                # firmware built for the other hardware kind "succeeds" on the
+                # wire but the device never comes back: it shows INCOMPATIBLE
+                # and stops heartbeating until powered off/on (which reverts to
+                # its base build — the demo recovery story).
+                new_b = behavior_for_version(status.firmware)
+                if new_b["template"] != d["template"]:
+                    d["ota_state"] = "incompatible"
+                    d["online"] = False
+                    d["gpio"] = {"D0": 0, "D1": 0, "D2": 0, "D3": 0}
+                    d["lcd"] = {"row1": "", "row2": ""} if d["template"] == "lcd" else None
+                    log_entry = {
+                        "timestamp": datetime.now().strftime("%I:%M:%S %p"),
+                        "level": "ERROR",
+                        "msg": f"Boot failed: firmware {status.firmware} not compatible with {d['template'].upper()} hardware — no response",
+                        "device_id": device_id,
+                    }
+                    logs[device_id].append(log_entry)
+                    if len(logs[device_id]) > 100:
+                        logs[device_id] = logs[device_id][-100:]
+                    await manager.broadcast("device_log", device_id, log_entry)
+                    _last_broadcast[device_id] = json.dumps(d, sort_keys=True, default=str)
+                    await manager.broadcast("ota_complete", device_id, d)
+                    return d
+                # The flashed firmware now drives the hardware — exactly like a
+                # real ESP32 booting a new sketch. Preset behaviours are explicit;
+                # custom/edited code is analysed from its C source.
+                b = behavior_for_version(d["firmware"])
+                d["gpio"] = dict(b["gpio"])
+                d["lcd"] = dict(b["lcd"]) if b["lcd"] else (
+                    {"row1": "", "row2": ""} if b["template"] == "lcd" else None
+                )
+                d["fw_dynamic"] = b["dynamic"]
+                d["template"] = b["template"]
+            log_entry = {
+                "timestamp": datetime.now().strftime("%I:%M:%S %p"),
+                "level": "INFO",
+                "msg": f"Firmware updated to {d['firmware']} ✓",
+                "device_id": device_id,
+            }
+            logs[device_id].append(log_entry)
+            if len(logs[device_id]) > 100:
+                logs[device_id] = logs[device_id][-100:]
+            await manager.broadcast("device_log", device_id, log_entry)
+        else:
+            status.state = None
+    if status.state == "failed":
+        d["ota_state"] = "failed"
+        log_entry = {
+            "timestamp": datetime.now().strftime("%I:%M:%S %p"),
+            "level": "WARN",
+            "msg": f"Update failed — device offline. Retrying every {OTA_RETRY_S}s…",
+            "device_id": device_id,
+        }
+        logs[device_id].append(log_entry)
+        if len(logs[device_id]) > 100:
+            logs[device_id] = logs[device_id][-100:]
+        await manager.broadcast("device_log", device_id, log_entry)
+    if status.state == "recovered":
+        # Powered back on with the update still pending → flash now succeeds.
+        if d.get("ota_pending"):
+            target = d["ota_pending"]
+            d["ota_pending"] = None
+            d["ota_progress"] = None
+            d["ota_state"] = None
+            d["firmware"] = target
+            b = behavior_for_version(target)
+            d["gpio"] = dict(b["gpio"])
+            d["lcd"] = dict(b["lcd"]) if b["lcd"] else (
+                {"row1": "", "row2": ""} if b["template"] == "lcd" else None
+            )
+            d["fw_dynamic"] = b["dynamic"]
+            log_entry = {
+                "timestamp": datetime.now().strftime("%I:%M:%S %p"),
+                "level": "INFO",
+                "msg": f"Device back online — retry succeeded, firmware updated to {target} ✓",
+                "device_id": device_id,
+            }
+            logs[device_id].append(log_entry)
+            if len(logs[device_id]) > 100:
+                logs[device_id] = logs[device_id][-100:]
+            await manager.broadcast("device_log", device_id, log_entry)
+        else:
+            d["ota_state"] = None
+    if status.ota_progress is not None and status.state is None:
+        # Flash progress — broadcast the full device, clients merge directly
+        _last_broadcast[device_id] = json.dumps(d, sort_keys=True, default=str)
+        await manager.broadcast("ota_progress", device_id, d)
+        return d
+    # Suppress redundant heartbeats: skip if the visible state is unchanged
+    snapshot = json.dumps(d, sort_keys=True, default=str)
+    if _last_broadcast.get(device_id) != snapshot:
+        _last_broadcast[device_id] = snapshot
         await manager.broadcast("device_status", device_id, d)
     return d
 
@@ -411,7 +984,9 @@ async def append_log(device_id: str, entry: LogEntry):
     if device_id not in logs:
         logs[device_id] = []
     log_entry = {
-        "timestamp": datetime.utcnow().strftime("%H:%M:%S"),
+        # Local wall-clock (matches device-side timestamps); utcnow() made the
+        # log feed show two different times mixed together.
+        "timestamp": datetime.now().strftime("%H:%M:%S"),
         "level": entry.level,
         "msg": entry.msg,
         "device_id": device_id,
@@ -428,13 +1003,15 @@ async def get_logs(device_id: str):
 
 # Firmware
 def compute_next_version() -> str:
-    versions = [fw["version"] for fw in FIRMWARE_VERSIONS if not fw.get("is_faulty")]
-    for v in versions:
-        m = re.match(r"v?(\d+)\.(\d+)\.(\d+)", v)
+    """Smallest unused vX.(Y+1).0 above the highest known version."""
+    best = (1, 0, 0)
+    for fw in FIRMWARE_VERSIONS:
+        m = re.match(r"v?(\d+)\.(\d+)\.(\d+)", fw["version"])
         if m:
-            major, minor, patch = int(m.group(1)), int(m.group(2)), int(m.group(3))
-            return f"v{major}.{minor + 1}.0"
-    return "v1.3.0"
+            t = tuple(int(m.group(i)) for i in (1, 2, 3))
+            if t > best:
+                best = t
+    return f"v{best[0]}.{best[1] + 1}.0"
 
 async def register_firmware_entry(
     version: Optional[str],
@@ -445,13 +1022,10 @@ async def register_firmware_entry(
 ):
     if not version or not version.strip():
         m = re.search(r"v\d+\.\d+\.\d+", filename)
-        if m:
-            ver = m.group(0)
-        else:
-            ver = compute_next_version()
+        ver = m.group(0) if m else compute_next_version()
     else:
         ver = version.strip()
-        if not ver.startswith("v") and ver[0].isdigit():
+        if not ver.startswith("v") and ver and ver[0].isdigit():
             ver = f"v{ver}"
 
     sha256_hash = hashlib.sha256(content_bytes).hexdigest()
@@ -480,18 +1054,22 @@ async def register_firmware_entry(
         with open(src_path, "w", encoding="utf-8") as f:
             f.write(FIRMWARE_CODE[ver])
 
-    existing = next((fw for fw in FIRMWARE_VERSIONS if fw["version"] == ver), None)
     entry = {
         "version": ver,
         "size": file_size,
         "changelog": changelog or f"Uploaded {filename} with verified SHA-256 integrity.",
-        "date": datetime.utcnow().strftime("%Y-%m-%d"),
+        "date": datetime.now().strftime("%Y-%m-%d"),
         "sha256": sha256_hash,
         "is_faulty": "faulty" in ver.lower(),
         "filename": filename,
         "has_source": is_source or (ver in FIRMWARE_CODE),
     }
 
+    existing = next((fw for fw in FIRMWARE_VERSIONS if fw["version"] == ver), None)
+    # Deliberately-corrupted downloads ("-faulty") upload fine but are refused
+    # at the gate: the platform flags the image as incompatible.
+    if entry.get("is_faulty"):
+        raise HTTPException(status_code=422, detail="Firmware not compatible: image failed verification (sha mismatch / corrupt header)")
     if existing:
         existing.update(entry)
     else:
@@ -506,6 +1084,58 @@ async def list_firmware():
     for fw in FIRMWARE_VERSIONS:
         result.append({**fw, "device_count": device_count_for_version(fw["version"])})
     return result
+
+@app.delete("/api/firmware/{version}")
+async def delete_firmware(version: str):
+    """Remove a firmware from the repository (and its binaries from disk)."""
+    global FIRMWARE_VERSIONS
+    in_use = [d["id"] for d in devices.values() if d["firmware"] == version]
+    pending = [d["id"] for d in devices.values() if d.get("ota_pending") == version]
+    if in_use or pending:
+        who = ", ".join(in_use + pending)
+        raise HTTPException(status_code=409, detail=f"Cannot delete — in use by {who}")
+    if not any(fw["version"] == version for fw in FIRMWARE_VERSIONS):
+        raise HTTPException(status_code=404, detail="Firmware not found")
+    FIRMWARE_VERSIONS = [fw for fw in FIRMWARE_VERSIONS if fw["version"] != version]
+    FIRMWARE_CODE.pop(version, None)
+    for ext in (".bin", ".cpp"):
+        p = os.path.join(os.path.dirname(__file__), "firmware", f"{version}{ext}")
+        if os.path.exists(p):
+            try:
+                os.remove(p)
+            except OSError:
+                pass
+    await manager.broadcast("firmware_added", version, {"deleted": True, "version": version})
+    return {"deleted": version}
+
+@app.get("/api/firmware/{version}/download")
+async def download_firmware(version: str):
+    """Download a firmware source file (for offline demo uploads). Faulty
+    samples are downloadable too — that's the point: upload one and watch the
+    platform reject it."""
+    code = FIRMWARE_CODE.get(version)
+    if code is None:
+        for p in PREDEFINED_FIRMWARE.values():
+            if p["version"] == version:
+                code = p["code"]
+                break
+    if code is None:
+        fw = next((fw for fw in FIRMWARE_VERSIONS if fw["version"] == version), None)
+        code = f"// Firmware {version}\n// Binary image (source not indexed)\n" if fw else None
+    if code is None:
+        raise HTTPException(status_code=404, detail="Firmware not found")
+    faulty = "faulty" in version.lower()
+    if faulty:
+        code = (
+            f"// ⚠ CORRUPTED BUILD — DO NOT FLASH\n// {version}: sha mismatch / truncated image\n"
+            + code
+        )
+    filename = f"{version}{'-faulty' if faulty and 'faulty' not in version else ''}.cpp"
+    return Response(
+        content=code,
+        media_type="text/x-csrc",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"', "Cache-Control": "no-store"},
+    )
 
 @app.post("/api/firmware")
 async def add_firmware(version: str, changelog: str = ""):
@@ -548,11 +1178,17 @@ async def upload_firmware_source(payload: FirmwareUploadJSON):
 
 @app.get("/api/firmware/{version}/code")
 async def get_firmware_code(version: str):
-    code = FIRMWARE_CODE.get(version, "// Custom uploaded firmware binary - source not indexed\n")
-    return {"version": version, "code": code}
+    # Uploaded/edited source wins, then the predefined library — the simulator
+    # code viewer must show the sketch actually running on the device.
+    if version in FIRMWARE_CODE:
+        return {"version": version, "code": FIRMWARE_CODE[version]}
+    for p in PREDEFINED_FIRMWARE.values():
+        if p["version"] == version:
+            return {"version": version, "code": p["code"]}
+    return {"version": version, "code": "// Custom uploaded firmware binary - source not indexed\n"}
 
 # Device Update (Metadata, Name, Group, Heartbeat)
-@app.patch("/api/devices/{device_id}")
+@app.api_route("/api/devices/{device_id}", methods=["PATCH", "PUT"])
 async def update_device_meta(device_id: str, data: DeviceUpdate):
     if device_id not in devices:
         raise HTTPException(status_code=404, detail="Device not found")
@@ -572,10 +1208,23 @@ async def push_ota(data: OTAPush):
     results = []
     for did in data.device_ids:
         if did in devices:
-            devices[did]["ota_pending"] = data.version
-            devices[did]["ota_progress"] = 0
+            dv = devices[did]
+            dv["ota_pending"] = data.version
+            dv["ota_progress"] = 0
+            if not dv.get("online"):
+                # Device is powered off — it cannot poll right now. Mark the
+                # push as failed/retrying until it comes back.
+                dv["ota_state"] = "failed"
+                log_entry = {
+                    "timestamp": datetime.now().strftime("%I:%M:%S %p"),
+                    "level": "WARN",
+                    "msg": f"Update failed — device offline. Retrying every {OTA_RETRY_S}s…",
+                    "device_id": did,
+                }
+                logs[did].append(log_entry)
+                await manager.broadcast("device_log", did, log_entry)
             await manager.broadcast("ota_started", did, {
-                "from_version": devices[did]["firmware"],
+                "from_version": dv["firmware"],
                 "to_version": data.version,
             })
             results.append(did)
@@ -587,10 +1236,21 @@ async def push_ota_group(data: GroupOTAPush):
     if not target_ids:
         raise HTTPException(status_code=404, detail="No devices found in this group")
     for did in target_ids:
-        devices[did]["ota_pending"] = data.version
-        devices[did]["ota_progress"] = 0
+        dv = devices[did]
+        dv["ota_pending"] = data.version
+        dv["ota_progress"] = 0
+        if not dv.get("online"):
+            dv["ota_state"] = "failed"
+            log_entry = {
+                "timestamp": datetime.now().strftime("%I:%M:%S %p"),
+                "level": "WARN",
+                "msg": f"Update failed — device offline. Retrying every {OTA_RETRY_S}s…",
+                "device_id": did,
+            }
+            logs[did].append(log_entry)
+            await manager.broadcast("device_log", did, log_entry)
         await manager.broadcast("ota_started", did, {
-            "from_version": devices[did]["firmware"],
+            "from_version": dv["firmware"],
             "to_version": data.version,
         })
     return {"group": data.group, "pushed": target_ids, "version": data.version}
@@ -616,16 +1276,21 @@ async def ota_check(device_id: str):
     if device_id not in devices:
         raise HTTPException(status_code=404, detail="Device not found")
     d = devices[device_id]
+    # CRITICAL: every response here must be no-store. Without it, browsers
+    # heuristically cache the 200 firmware payload (FileResponse sends
+    # Last-Modified but no Cache-Control) and REPLAY it on later polls —
+    # the device then sees "update available" forever and flash-loops.
+    no_store = {"Cache-Control": "no-store"}
     if d.get("ota_pending"):
         version = d["ota_pending"]
         fw_path = os.path.join(os.path.dirname(__file__), "firmware", f"{version}.bin")
         if os.path.exists(fw_path):
             return FileResponse(fw_path, media_type="application/octet-stream",
-                                headers={"X-Firmware-Version": version})
-        raise HTTPException(status_code=404, detail="Firmware file not found")
+                                headers={"X-Firmware-Version": version, **no_store})
+        # No binary on disk — still tell the device to update (headers only)
+        return JSONResponse({"status": "update_available", "version": version}, headers=no_store)
     # No update pending
-    from fastapi.responses import Response
-    return Response(status_code=304)
+    return Response(status_code=304, headers=no_store)
 
 # Groups
 @app.get("/api/groups")
@@ -660,7 +1325,7 @@ async def push_config(data: ConfigPush):
             # Also log it
             if did in logs:
                 log_entry = {
-                    "timestamp": datetime.utcnow().strftime("%H:%M:%S"),
+                    "timestamp": datetime.now().strftime("%H:%M:%S"),
                     "level": "INFO",
                     "msg": f"Config received: {json.dumps(data.config)}",
                     "device_id": did,
@@ -676,6 +1341,14 @@ async def ws_events(websocket: WebSocket):
     await manager.connect(websocket)
     # Send current device state on connect
     try:
+        # Handshake: announce this client so it learns its own API base as seen
+        # by the backend (lets remote devices hit the right host).
+        client_host = websocket.headers.get("host", "localhost:8000")
+        await websocket.send_text(json.dumps({
+            "type": "hello",
+            "device_id": "",
+            "payload": {"server_host": client_host},
+        }))
         for device in devices.values():
             await websocket.send_text(json.dumps({
                 "type": "device_registered",
@@ -690,3 +1363,59 @@ async def ws_events(websocket: WebSocket):
         manager.disconnect(websocket)
     except Exception:
         manager.disconnect(websocket)
+
+
+# ─── Static files & Single-Service SPA Routing (Render Deployment) ────────────
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DASHBOARD_DIST = os.path.join(BASE_DIR, "dashboard", "dist")
+SIMULATOR_DIST = os.path.join(BASE_DIR, "simulator", "dist")
+
+# Mount static asset folders if they exist
+sim_assets = os.path.join(SIMULATOR_DIST, "assets")
+if os.path.isdir(sim_assets):
+    app.mount("/simulator/assets", StaticFiles(directory=sim_assets), name="simulator-assets")
+
+dash_assets = os.path.join(DASHBOARD_DIST, "assets")
+if os.path.isdir(dash_assets):
+    app.mount("/assets", StaticFiles(directory=dash_assets), name="dashboard-assets")
+
+
+@app.get("/simulator", include_in_schema=False)
+@app.get("/simulator/", include_in_schema=False)
+@app.get("/simulator/{full_path:path}", include_in_schema=False)
+async def serve_simulator_spa(full_path: str = ""):
+    """Serves the PC-B ESP32 Simulator single-page application and its assets."""
+    if os.path.exists(SIMULATOR_DIST):
+        target = os.path.join(SIMULATOR_DIST, full_path)
+        if full_path and os.path.isfile(target):
+            return FileResponse(target)
+        index_file = os.path.join(SIMULATOR_DIST, "index.html")
+        if os.path.isfile(index_file):
+            return FileResponse(index_file)
+    return JSONResponse(
+        {"detail": "Simulator frontend not built yet. Run 'npm run build' in simulator/ directory."},
+        status_code=404,
+    )
+
+
+@app.get("/", include_in_schema=False)
+@app.get("/{full_path:path}", include_in_schema=False)
+async def serve_dashboard_spa(full_path: str = ""):
+    """Serves the PC-A Fleet Dashboard single-page application and its assets."""
+    # Never intercept API, OTA, or WebSocket endpoints
+    if full_path.startswith("api/") or full_path.startswith("ota/") or full_path.startswith("ws"):
+        raise HTTPException(status_code=404, detail="API endpoint not found")
+
+    if os.path.exists(DASHBOARD_DIST):
+        target = os.path.join(DASHBOARD_DIST, full_path)
+        if full_path and os.path.isfile(target):
+            return FileResponse(target)
+        index_file = os.path.join(DASHBOARD_DIST, "index.html")
+        if os.path.isfile(index_file):
+            return FileResponse(index_file)
+    return JSONResponse({
+        "status": "online",
+        "service": "IoT OTA Dashboard Backend",
+        "detail": "Frontend dist folders not built yet. Run 'npm run build' in dashboard/ and simulator/.",
+    })
